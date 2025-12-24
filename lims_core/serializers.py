@@ -1,102 +1,389 @@
+# lims_core/serializers.py
+from __future__ import annotations
+
+from typing import Any, Dict, List
+
+from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Project, Sample, Experiment, InventoryItem, UserRole, AuditLog
-import uuid
+
+from .models import (
+    Institute,
+    Laboratory,
+    StaffMember,
+    Project,
+    Sample,
+    Experiment,
+    InventoryItem,
+    UserRole,
+    AuditLog,
+)
+
+from .workflows import validate_transition, allowed_next_states
 
 
-class ProjectSerializer(serializers.ModelSerializer):
-    created_by_username = serializers.ReadOnlyField(source="created_by.username")
+# ===============================================================
+# Helpers
+# ===============================================================
+class ImmutableFieldsMixin:
+    """
+    Blocks updates to selected fields if they appear in incoming data.
+    Works for both PATCH and PUT.
+    """
+    immutable_fields: tuple[str, ...] = ()
 
+    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+        if self.instance is not None and self.immutable_fields:
+            for f in self.immutable_fields:
+                if f in attrs:
+                    raise serializers.ValidationError(
+                        {f: "This field is immutable."}
+                    )
+        return super().validate(attrs)
+
+
+class UserSlimSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Project
-        fields = [
-            "id", "name", "description", "start_date", "end_date",
-            "created_by", "created_by_username",
-        ]
-        read_only_fields = ["id", "created_by", "created_by_username"]
+        model = User
+        fields = ("id", "username", "email")
+        read_only_fields = fields
 
 
-class SampleSerializer(serializers.ModelSerializer):
-    project_name = serializers.ReadOnlyField(source="project.name")
-    # make it optional so create() can auto-generate
-    sample_id = serializers.CharField(required=False, allow_blank=True)
-
+# ===============================================================
+# Institute / Laboratory
+# ===============================================================
+class InstituteSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Sample
-        fields = [
-            "id", "project", "project_name", "sample_id", "sample_type",
-            "collected_on", "collected_by", "storage_location", "metadata",
-        ]
-        read_only_fields = ["id", "project_name"]
-
-    def _gen_sample_id(self):
-        return f"SMP-{uuid.uuid4().hex[:8].upper()}"
-
-    def create(self, validated_data):
-        # Only generate if omitted or blank
-        if not validated_data.get("sample_id"):
-            for _ in range(5):  # low collision chance; still be safe
-                candidate = self._gen_sample_id()
-                if not Sample.objects.filter(sample_id=candidate).exists():
-                    validated_data["sample_id"] = candidate
-                    break
-        return super().create(validated_data)
+        model = Institute
+        fields = (
+            "id",
+            "code",
+            "name",
+            "location",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
 
 
-class ExperimentSerializer(serializers.ModelSerializer):
-    project_name = serializers.ReadOnlyField(source="project.name")
-    sample_ids = serializers.SlugRelatedField(
-        source="samples", many=True, read_only=True, slug_field="sample_id"
+class LaboratorySerializer(serializers.ModelSerializer):
+    institute_code = serializers.CharField(
+        source="institute.code", read_only=True
+    )
+    institute_name = serializers.CharField(
+        source="institute.name", read_only=True
     )
 
     class Meta:
+        model = Laboratory
+        fields = (
+            "id",
+            "institute",
+            "institute_code",
+            "institute_name",
+            "code",
+            "name",
+            "location",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "created_at",
+            "updated_at",
+            "institute_code",
+            "institute_name",
+        )
+
+
+# ===============================================================
+# Staff
+# ===============================================================
+class StaffMemberSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
+    user = UserSlimSerializer(read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(
+        source="user",
+        queryset=User.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+
+    institute_code = serializers.CharField(
+        source="institute.code", read_only=True
+    )
+    laboratory_code = serializers.CharField(
+        source="laboratory.code", read_only=True
+    )
+
+    immutable_fields = ("institute", "laboratory")
+
+    class Meta:
+        model = StaffMember
+        fields = (
+            "id",
+            "institute",
+            "institute_code",
+            "laboratory",
+            "laboratory_code",
+            "user",
+            "user_id",
+            "staff_type",
+            "full_name",
+            "email",
+            "phone",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "created_at",
+            "updated_at",
+            "institute_code",
+            "laboratory_code",
+            "user",
+        )
+
+
+# ===============================================================
+# Project
+# ===============================================================
+class ProjectSerializer(serializers.ModelSerializer):
+    laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
+    laboratory_code = serializers.CharField(
+        source="laboratory.code", read_only=True
+    )
+    created_by = UserSlimSerializer(read_only=True)
+
+    class Meta:
+        model = Project
+        fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "name",
+            "description",
+            "is_active",
+            "created_by",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "created_by",
+            "created_at",
+            "updated_at",
+        )
+
+
+# ===============================================================
+# Sample (workflow-aware)
+# ===============================================================
+class SampleSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
+    laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
+    laboratory_code = serializers.CharField(
+        source="laboratory.code", read_only=True
+    )
+    project_name = serializers.CharField(
+        source="project.name", read_only=True
+    )
+
+    allowed_next_states = serializers.SerializerMethodField()
+
+    immutable_fields = ("project",)
+
+    class Meta:
+        model = Sample
+        fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "project",
+            "project_name",
+            "sample_id",
+            "sample_type",
+            "status",
+            "allowed_next_states",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "project_name",
+            "allowed_next_states",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_allowed_next_states(self, obj: Sample) -> List[str]:
+        return allowed_next_states("sample", obj.status)
+
+    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+        attrs = super().validate(attrs)
+
+        if self.instance and "status" in attrs:
+            try:
+                validate_transition(
+                    kind="sample",
+                    old=self.instance.status,
+                    new=attrs["status"],
+                )
+            except ValueError as e:
+                raise serializers.ValidationError({"status": str(e)})
+
+        return attrs
+
+
+# ===============================================================
+# Experiment (workflow-aware)
+# ===============================================================
+class ExperimentSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
+    laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
+    laboratory_code = serializers.CharField(
+        source="laboratory.code", read_only=True
+    )
+    project_name = serializers.CharField(
+        source="project.name", read_only=True
+    )
+
+    allowed_next_states = serializers.SerializerMethodField()
+
+    immutable_fields = ("project",)
+
+    class Meta:
         model = Experiment
-        fields = [
-            "id", "project", "project_name", "name", "description",
-            "samples", "sample_ids", "protocol_reference",
-            "start_date", "end_date", "results",
-        ]
-        read_only_fields = ["id", "project_name", "sample_ids"]
+        fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "project",
+            "project_name",
+            "name",
+            "status",
+            "allowed_next_states",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "project_name",
+            "allowed_next_states",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_allowed_next_states(self, obj: Experiment) -> List[str]:
+        return allowed_next_states("experiment", obj.status)
+
+    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+        attrs = super().validate(attrs)
+
+        if self.instance and "status" in attrs:
+            try:
+                validate_transition(
+                    kind="experiment",
+                    old=self.instance.status,
+                    new=attrs["status"],
+                )
+            except ValueError as e:
+                raise serializers.ValidationError({"status": str(e)})
+
+        return attrs
 
 
+# ===============================================================
+# Inventory
+# ===============================================================
 class InventoryItemSerializer(serializers.ModelSerializer):
-    # Works whether your model has `updated_at` or legacy `last_updated`
-    updated_at = serializers.SerializerMethodField()
-
-    def get_updated_at(self, obj):
-        return getattr(obj, "updated_at", getattr(obj, "last_updated", None))
+    laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
+    laboratory_code = serializers.CharField(
+        source="laboratory.code", read_only=True
+    )
 
     class Meta:
         model = InventoryItem
-        fields = [
-            "id", "name", "category", "quantity", "unit",
-            "location", "supplier", "expiry_date", "updated_at",
-        ]
-        read_only_fields = ["id", "updated_at"]
+        fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "name",
+            "quantity",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "created_at",
+            "updated_at",
+        )
 
 
+# ===============================================================
+# UserRole
+# ===============================================================
 class UserRoleSerializer(serializers.ModelSerializer):
-    username = serializers.ReadOnlyField(source="user.username")
-    # Works whether model has `assigned_on` or refactored `created_at`
-    assigned_on = serializers.SerializerMethodField()
-
-    def get_assigned_on(self, obj):
-        return getattr(obj, "assigned_on", getattr(obj, "created_at", None))
+    laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
+    laboratory_code = serializers.CharField(
+        source="laboratory.code", read_only=True
+    )
+    user_username = serializers.CharField(
+        source="user.username", read_only=True
+    )
 
     class Meta:
         model = UserRole
-        fields = ["id", "user", "username", "role", "assigned_on"]
-        read_only_fields = ["id", "username", "assigned_on"]
+        fields = (
+            "id",
+            "user",
+            "user_username",
+            "laboratory",
+            "laboratory_code",
+            "role",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "user_username",
+            "created_at",
+            "updated_at",
+        )
 
 
+# ===============================================================
+# AuditLog
+# ===============================================================
 class AuditLogSerializer(serializers.ModelSerializer):
-    username = serializers.ReadOnlyField(source="user.username")
-    # Emit `timestamp`, using `created_at` if refactored
-    timestamp = serializers.SerializerMethodField()
-
-    def get_timestamp(self, obj):
-        return getattr(obj, "timestamp", getattr(obj, "created_at", None))
+    laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
+    laboratory_code = serializers.CharField(
+        source="laboratory.code", read_only=True
+    )
+    user_username = serializers.CharField(
+        source="user.username", read_only=True
+    )
 
     class Meta:
         model = AuditLog
-        fields = ["id", "user", "username", "action", "timestamp", "details"]
-        read_only_fields = ["id", "username", "timestamp"]
+        fields = (
+            "id",
+            "laboratory",
+            "laboratory_code",
+            "user",
+            "user_username",
+            "action",
+            "details",
+            "created_at",
+        )
+        read_only_fields = fields

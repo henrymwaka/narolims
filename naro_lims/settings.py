@@ -1,67 +1,91 @@
 """
 Django settings for naro_lims project.
-Adapted for NARO-LIMS with PostgreSQL and .env support.
+Adapted for NARO-LIMS with PostgreSQL, JWT, Cloudflare, DRF,
+workflow enforcement, audit safety, and Celery background tasks.
 """
 
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
+from celery.schedules import crontab
+
 
 # ===============================================================
-# Base Paths and Security Settings
+# Base paths
 # ===============================================================
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+# ===============================================================
+# Security
+# ===============================================================
 SECRET_KEY = config("SECRET_KEY", default="insecure-key-change-me")
 DEBUG = config("DEBUG", default=False, cast=bool)
 
-# Allow valid hosts (local + production behind Cloudflare)
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
-    default="narolims.reslab.dev,www.narolims.reslab.dev,127.0.0.1,localhost,.reslab.dev",
+    default=(
+        "narolims.reslab.dev,"
+        "www.narolims.reslab.dev,"
+        "127.0.0.1,"
+        "localhost,"
+        "testserver,"
+        ".reslab.dev"
+    ),
 ).split(",")
 
-# Proper HTTPS handling behind Cloudflare
+
+# ---------------------------------------------------------------
+# Cloudflare + Nginx + Gunicorn
+# ---------------------------------------------------------------
+USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = False  # Cloudflare handles SSL redirection
+
+SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
-# CSRF trusted origins for Cloudflare + direct HTTP testing
 CSRF_TRUSTED_ORIGINS = [
     "https://narolims.reslab.dev",
     "https://www.narolims.reslab.dev",
     "http://narolims.reslab.dev",
 ]
 
+
 # ===============================================================
-# Installed Apps
+# Installed apps
 # ===============================================================
 INSTALLED_APPS = [
-    # Django defaults
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "rest_framework_simplejwt.token_blacklist",
 
-    # Third-party
     "corsheaders",
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
+    "django_filters",
     "drf_spectacular",
     "drf_spectacular_sidecar",
-    "django_filters",
 
-    # Local apps
-    "lims_core",
+    "lims_core.apps.LimsCoreConfig",
 ]
+
+# --- Celery extensions (added cleanly) ---
+INSTALLED_APPS += [
+    "django_celery_results",
+    "django_celery_beat",
+]
+
 
 # ===============================================================
 # Middleware
 # ===============================================================
 MIDDLEWARE = [
+    "lims_core.middleware.CurrentUserMiddleware",
+
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -72,7 +96,10 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+
 ROOT_URLCONF = "naro_lims.urls"
+WSGI_APPLICATION = "naro_lims.wsgi.application"
+
 
 # ===============================================================
 # Templates
@@ -89,13 +116,12 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
             ],
         },
-    },
+    }
 ]
 
-WSGI_APPLICATION = "naro_lims.wsgi.application"
 
 # ===============================================================
-# Database (PostgreSQL)
+# Database
 # ===============================================================
 DATABASES = {
     "default": {
@@ -108,8 +134,9 @@ DATABASES = {
     }
 }
 
+
 # ===============================================================
-# Password Validation
+# Password validation
 # ===============================================================
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -118,16 +145,18 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+
 # ===============================================================
-# Localization
+# Internationalization
 # ===============================================================
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+TIME_ZONE = "Africa/Kampala"
 USE_I18N = True
 USE_TZ = True
 
+
 # ===============================================================
-# Static and Media Files
+# Static & media
 # ===============================================================
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
@@ -138,44 +167,64 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ===============================================================
-# CORS (Cross-Origin Resource Sharing)
-# ===============================================================
-CORS_ALLOW_ALL_ORIGINS = True  # tighten in production
 
 # ===============================================================
-# Django REST Framework and OpenAPI
+# CORS
+# ===============================================================
+CORS_ALLOW_ALL_ORIGINS = True
+
+
+# ===============================================================
+# Django REST Framework
 # ===============================================================
 REST_FRAMEWORK = {
-    "DEFAULT_RENDERER_CLASSES": [
+
+    # Session auth MUST come first for browser workflows
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+
+    "DEFAULT_RENDERER_CLASSES": (
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
-    ],
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
     ),
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
-    "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
+
+    "DEFAULT_FILTER_BACKENDS": (
+        "django_filters.rest_framework.DjangoFilterBackend",
+    ),
+
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "naro_lims.pagination.DefaultPagination",
     "PAGE_SIZE": 50,
 }
 
+
+# ===============================================================
+# OpenAPI / Swagger
+# ===============================================================
 SPECTACULAR_SETTINGS = {
     "TITLE": "NARO-LIMS API",
-    "DESCRIPTION": "Modular LIMS for NARO laboratories",
+    "DESCRIPTION": "Modular Laboratory Information Management System for NARO",
     "VERSION": "0.1.0",
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "REDOC_DIST": "SIDECAR",
     "SERVERS": [
-        {"url": "https://narolims.reslab.dev", "description": "Production"},
+        {
+            "url": "https://narolims.reslab.dev",
+            "description": "Production",
+        },
     ],
 }
 
+
 # ===============================================================
-# JWT Authentication
+# JWT
 # ===============================================================
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
@@ -183,4 +232,25 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+
+# ===============================================================
+# Celery configuration (Step 12.06)
+# ===============================================================
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+CELERY_RESULT_BACKEND = "django-db"
+
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+
+CELERY_TIMEZONE = "Africa/Kampala"
+
+CELERY_BEAT_SCHEDULE = {
+    "scan-workflow-sla-every-10-mins": {
+        "task": "lims_core.tasks.scan_workflow_sla",
+        "schedule": crontab(minute="*/10"),
+        "args": (),
+    }
 }

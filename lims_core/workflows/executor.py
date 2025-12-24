@@ -1,3 +1,5 @@
+# lims_core/workflows/executor.py
+
 from django.db import transaction
 
 from rest_framework.exceptions import (
@@ -11,6 +13,9 @@ from lims_core.workflows import (
     allowed_next_states,
     required_roles,
 )
+
+# SLA monitoring (post-transition)
+from lims_core.workflows.sla_monitor import check_sla_breach
 
 
 def execute_transition(
@@ -29,6 +34,7 @@ def execute_transition(
     - check role permissions (lab-scoped)
     - persist state change (safe update)
     - write transition timeline record
+    - trigger SLA breach detection
     """
 
     kind = (kind or "").strip().lower()
@@ -91,3 +97,12 @@ def execute_transition(
             performed_by=user,
             laboratory=instance.laboratory,
         )
+
+    # ---------------------------------------------------------
+    # 5. SLA breach detection (post-commit logic)
+    # ---------------------------------------------------------
+    check_sla_breach(
+        kind=kind,
+        object_id=instance.pk,
+        user=user,
+    )

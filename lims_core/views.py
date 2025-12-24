@@ -5,6 +5,7 @@ from typing import Optional
 
 from django.db.models import QuerySet, Q
 from django.core.exceptions import FieldDoesNotExist
+from django.shortcuts import get_object_or_404, render
 
 from rest_framework import viewsets
 from rest_framework.views import APIView
@@ -285,7 +286,6 @@ class SampleViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSet
     def perform_update(self, serializer):
         incoming = getattr(self.request, "data", {}) or {}
 
-        # Enforce workflow transitions for status updates (12A)
         if "status" in incoming:
             current = (serializer.instance.status or "").strip().upper()
             target = str(incoming["status"]).strip().upper()
@@ -318,7 +318,6 @@ class ExperimentViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelVie
     def perform_update(self, serializer):
         incoming = getattr(self.request, "data", {}) or {}
 
-        # Enforce workflow transitions for status updates (12A)
         if "status" in incoming:
             current = (serializer.instance.status or "").strip().upper()
             target = str(incoming["status"]).strip().upper()
@@ -391,3 +390,24 @@ class AuditLogViewSet(LabScopedQuerysetMixin, viewsets.ReadOnlyModelViewSet):
         return _apply_default_ordering(
             self.get_scoped_queryset(super().get_queryset())
         )
+
+
+# ===============================================================
+# HTML DETAIL VIEWS (Workflow embedding)
+# ===============================================================
+def sample_detail(request, pk: int):
+    sample = get_object_or_404(Sample, pk=pk)
+    return render(
+        request,
+        "lims_core/samples/detail.html",
+        {"sample": sample},
+    )
+
+
+def experiment_detail(request, pk: int):
+    experiment = get_object_or_404(Experiment, pk=pk)
+    return render(
+        request,
+        "lims_core/experiments/detail.html",
+        {"experiment": experiment},
+    )
