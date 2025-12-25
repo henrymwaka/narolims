@@ -20,14 +20,26 @@ db.sqlite3
 /static/
 /logs/
 
+# Celery / background tasks
+celerybeat-schedule
+celerybeat.pid
+
 # ---- Environment & config ----
 .env
 *.local
+
+# ---- Runtime / local artifacts ----
+cookies.txt
+nano
+h origin*
+*.log
 
 # ---- IDEs & editors ----
 .vscode/
 .idea/
 *.swp
+*.swo
+*.tmp
 
 # ---- OS files ----
 .DS_Store
