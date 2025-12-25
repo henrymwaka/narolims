@@ -1,168 +1,98 @@
-# lims_core/views_workflow_bulk.py
-from __future__ import annotations
-
-from django.core.exceptions import ObjectDoesNotExist, FieldDoesNotExist
-from django.db import transaction
-
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError
-from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
+from rest_framework import status
 
-from lims_core.models import Sample, Experiment, UserRole
-from lims_core.workflows.executor import execute_transition
-
-
-def _model_has_field(model, field_name: str) -> bool:
-    try:
-        model._meta.get_field(field_name)
-        return True
-    except FieldDoesNotExist:
-        return False
-
-
-def _get_model_for_kind(kind: str):
-    kind = (kind or "").strip().lower()
-    if kind == "sample":
-        return Sample
-    if kind == "experiment":
-        return Experiment
-    raise ValidationError({"kind": "Unknown workflow kind."})
-
-
-def _has_lab_access(user, obj) -> bool:
-    if user.is_superuser:
-        return True
-
-    lab = getattr(obj, "laboratory", None)
-    if not lab:
-        return True
-
-    return UserRole.objects.filter(user=user, laboratory=lab).exists()
+from lims_core.models import Sample, Experiment
+from lims_core.services.workflow_bulk import bulk_transition
+from lims_core.views import require_laboratory
 
 
 class WorkflowBulkTransitionView(APIView):
     """
-    POST bulk transitions.
+    Canonical API endpoint for bulk workflow transitions.
 
-    Payload:
-    {
-      "items": [
-        {"id": 1, "status": "QC_PASSED", "note": "ok"},
-        {"id": 2, "to": "QC_FAILED"}
-      ],
-      "atomic": false
-    }
-
-    Response includes per-item success/failure.
+    This view:
+    - Resolves laboratory context
+    - Resolves user role within laboratory
+    - Dispatches to the single authoritative bulk workflow engine
     """
+
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, kind: str):
-        model = _get_model_for_kind(kind)
-        user = request.user
+    def post(self, request):
+        kind = request.data.get("kind")
+        target_status = request.data.get("target_status")
+        object_ids = request.data.get("object_ids", [])
+        comment = request.data.get("comment", "")
 
-        data = request.data or {}
-        items = data.get("items", None)
-        atomic = bool(data.get("atomic", False))
-
-        if not isinstance(items, list) or not items:
-            raise ValidationError({"items": "Provide a non-empty list of items."})
-
-        # Normalize targets early
-        normalized = []
-        for idx, it in enumerate(items):
-            if not isinstance(it, dict):
-                raise ValidationError({"items": f"Item {idx} must be an object."})
-
-            obj_id = it.get("id")
-            if not obj_id:
-                raise ValidationError({"items": f"Item {idx} missing 'id'."})
-
-            target = it.get("status") or it.get("to")
-            if not target:
-                raise ValidationError({"items": f"Item {idx} missing 'status' or 'to'."})
-
-            normalized.append(
+        # ---------------------------------------------------------
+        # 1. Basic request validation
+        # ---------------------------------------------------------
+        if not kind or not target_status or not object_ids:
+            return Response(
                 {
-                    "id": int(obj_id),
-                    "target": str(target).strip().upper(),
-                    "note": (it.get("note") or "").strip() or None,
-                }
+                    "detail": (
+                        "kind, target_status, and object_ids "
+                        "are required fields"
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        results = []
+        # ---------------------------------------------------------
+        # 2. Resolve laboratory + actor role
+        # ---------------------------------------------------------
+        laboratory = require_laboratory(request)
+        user = request.user
 
-        def _run_one(entry):
-            try:
-                obj = model.objects.select_for_update().get(pk=entry["id"])
-            except ObjectDoesNotExist:
-                return {
-                    "id": entry["id"],
-                    "ok": False,
-                    "error": "Not found.",
-                }
-
-            if not _has_lab_access(user, obj):
-                return {
-                    "id": entry["id"],
-                    "ok": False,
-                    "error": "You do not have access to this laboratory.",
-                }
-
-            try:
-                old = (obj.status or "").strip().upper()
-                execute_transition(
-                    instance=obj,
-                    kind=kind,
-                    new_status=entry["target"],
-                    user=user,
-                    note=entry["note"],
-                )
-                return {
-                    "id": obj.pk,
-                    "ok": True,
-                    "from": old,
-                    "to": entry["target"],
-                    "status": entry["target"],
-                }
-            except (DRFPermissionDenied, Exception) as e:
-                # DRFPermissionDenied rarely raised here, but keep it safe
-                return {
-                    "id": entry["id"],
-                    "ok": False,
-                    "error": str(e),
-                }
-
-        if atomic:
-            # all-or-nothing
-            with transaction.atomic():
-                for entry in normalized:
-                    out = _run_one(entry)
-                    results.append(out)
-                    if not out["ok"]:
-                        # rollback everything
-                        raise ValidationError(
-                            {
-                                "detail": "Atomic bulk transition failed; rolled back.",
-                                "first_error": out,
-                            }
-                        )
-        else:
-            # best-effort
-            for entry in normalized:
-                with transaction.atomic():
-                    results.append(_run_one(entry))
-
-        ok_count = sum(1 for r in results if r.get("ok"))
-        return Response(
-            {
-                "kind": kind,
-                "atomic": atomic,
-                "requested": len(results),
-                "succeeded": ok_count,
-                "failed": len(results) - ok_count,
-                "results": results,
-            }
+        user_role = (
+            user.userrole_set.filter(laboratory=laboratory)
+            .values_list("role", flat=True)
+            .first()
         )
+
+        if not user_role:
+            return Response(
+                {"detail": "User has no role in this laboratory"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # ---------------------------------------------------------
+        # 3. Load objects by workflow kind
+        # ---------------------------------------------------------
+        kind = kind.strip().lower()
+
+        if kind == "sample":
+            objects = list(
+                Sample.objects.filter(
+                    id__in=object_ids,
+                    laboratory=laboratory,
+                )
+            )
+        elif kind == "experiment":
+            objects = list(
+                Experiment.objects.filter(
+                    id__in=object_ids,
+                    laboratory=laboratory,
+                )
+            )
+        else:
+            return Response(
+                {"detail": f"Unsupported workflow kind: {kind}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ---------------------------------------------------------
+        # 4. Execute bulk workflow transition
+        # ---------------------------------------------------------
+        result = bulk_transition(
+            kind=kind,
+            objects=objects,
+            target_status=target_status,
+            actor=user,
+            actor_role=user_role,
+            comment=comment,
+        )
+
+        return Response(result, status=status.HTTP_200_OK)
