@@ -1,0 +1,21 @@
+{% extends "lims_core/base.html" %}
+{% load static %}
+
+{% block content %}
+
+<h2>Experiment {{ object.code }}</h2>
+
+<table>
+  <tr><th>Status</th><td>{{ object.status }}</td></tr>
+  <tr><th>Project</th><td>{{ object.project }}</td></tr>
+  <tr><th>Created</th><td>{{ object.created_at }}</td></tr>
+</table>
+
+<hr>
+
+{% include "lims_core/workflow_widget.html" with
+    workflow_kind="experiment"
+    workflow_object_id=object.id
+%}
+
+{% endblock %}

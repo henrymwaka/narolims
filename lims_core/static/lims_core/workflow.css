@@ -1,0 +1,46 @@
+.workflow-card {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    max-width: 420px;
+    font-family: system-ui, sans-serif;
+}
+
+.workflow-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.status-pill {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #eee;
+}
+
+.status-pill.REGISTERED { background: #e3f2fd; }
+.status-pill.IN_PROCESS { background: #fff3cd; }
+.status-pill.ARCHIVED   { background: #f8d7da; }
+
+.workflow-actions {
+    margin-top: 10px;
+}
+
+.workflow-actions select,
+.workflow-actions button {
+    padding: 6px;
+    font-size: 13px;
+}
+
+.timeline {
+    margin-top: 14px;
+    font-size: 12px;
+}
+
+.timeline-entry {
+    border-left: 2px solid #ccc;
+    padding-left: 8px;
+    margin-bottom: 6px;
+}

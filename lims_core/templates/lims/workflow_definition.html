@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ kind|title }} Workflow</title>
+
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont;
+            margin: 2rem;
+            background: #fafafa;
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+        }
+
+        .status {
+            padding: 0.5rem 0.75rem;
+            margin: 0.25rem 0;
+            display: inline-block;
+            border-radius: 6px;
+            background: #e5e7eb;
+            font-weight: 600;
+        }
+
+        .terminal {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+            width: 100%;
+            background: white;
+        }
+
+        th, td {
+            border: 1px solid #e5e7eb;
+            padding: 0.5rem 0.75rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f3f4f6;
+        }
+
+        ul {
+            margin: 0;
+            padding-left: 1.2rem;
+        }
+
+        .note {
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<h1>{{ kind|title }} Workflow</h1>
+
+<h3>Statuses</h3>
+<div>
+    {% for s in statuses %}
+        <span class="status {% if s in terminal_states %}terminal{% endif %}">
+            {{ s }}
+        </span>
+    {% endfor %}
+</div>
+
+<h3>Allowed Transitions</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Current Status</th>
+            <th>Can Transition To</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for from_state, to_states in transitions.items %}
+            <tr>
+                <td><strong>{{ from_state }}</strong></td>
+                <td>
+                    {% if to_states %}
+                        <ul>
+                            {% for t in to_states %}
+                                <li>{{ t }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <em>Terminal state</em>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p class="note">
+    Terminal states are highlighted in red.
+    Transitions not shown here are not permitted by the system.
+</p>
+
+</body>
+</html>

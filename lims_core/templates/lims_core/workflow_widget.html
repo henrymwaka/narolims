@@ -1,0 +1,169 @@
+{% load static %}
+
+<link rel="stylesheet" href="{% static 'lims_core/css/workflows.css' %}">
+
+<div class="workflow-card"
+     data-kind="{{ workflow_kind }}"
+     data-id="{{ workflow_object_id }}">
+
+    <div class="workflow-header">
+        <strong>Workflow</strong>
+        <span class="status-pill" data-wf-status>Loading…</span>
+    </div>
+
+    <div class="workflow-actions">
+        <select data-wf-next></select>
+        <button data-wf-apply disabled>Apply</button>
+    </div>
+
+    <div class="workflow-error" data-wf-error hidden></div>
+
+    <div class="timeline" data-wf-timeline></div>
+</div>
+
+<script>
+(function () {
+    const container = document.querySelector(".workflow-card");
+    if (!container) return;
+
+    const kind = container.dataset.kind;
+    const id = container.dataset.id;
+
+    const statusEl = container.querySelector("[data-wf-status]");
+    const selectEl = container.querySelector("[data-wf-next]");
+    const applyBtn = container.querySelector("[data-wf-apply]");
+    const errorEl = container.querySelector("[data-wf-error]");
+    const timelineEl = container.querySelector("[data-wf-timeline]");
+
+    const csrfToken =
+        document.querySelector("meta[name='csrf-token']")?.content || "";
+
+    function showError(msg) {
+        errorEl.textContent = msg;
+        errorEl.hidden = false;
+    }
+
+    function clearError() {
+        errorEl.textContent = "";
+        errorEl.hidden = true;
+    }
+
+    function setStatus(status) {
+        statusEl.textContent = status;
+        statusEl.className = `status-pill ${status}`;
+    }
+
+    async function loadState() {
+        clearError();
+        selectEl.innerHTML = "";
+        applyBtn.disabled = true;
+        applyBtn.title = "";
+        setStatus("Loading…");
+
+        try {
+            const stateResp = await fetch(
+                `/lims/workflows/${kind}/${id}/`
+            );
+            if (!stateResp.ok) throw new Error("Failed to load workflow state");
+
+            const state = await stateResp.json();
+            setStatus(state.status);
+
+            const allowedResp = await fetch(
+                `/lims/workflows/${kind}/${id}/allowed/`
+            );
+            if (!allowedResp.ok) return;
+
+            const allowed = await allowedResp.json();
+
+            if (!allowed.allowed || allowed.allowed.length === 0) {
+                applyBtn.disabled = true;
+                applyBtn.title = "This object is in a terminal state or you lack permission";
+                return;
+            }
+
+            allowed.allowed.forEach(target => {
+                const opt = document.createElement("option");
+                opt.value = target;
+                opt.textContent = target;
+                selectEl.appendChild(opt);
+            });
+
+            applyBtn.disabled = false;
+
+            loadTimeline();
+
+        } catch (err) {
+            showError(err.message);
+        }
+    }
+
+    async function loadTimeline() {
+        timelineEl.innerHTML = "";
+
+        try {
+            const resp = await fetch(
+                `/lims/workflows/${kind}/${id}/timeline/`
+            );
+            if (!resp.ok) return;
+
+            const data = await resp.json();
+
+            data.timeline.forEach(t => {
+                const row = document.createElement("div");
+                row.className = "timeline-row";
+                row.textContent =
+                    `${t.at} | ${t.user || "system"} | ${t.from} → ${t.to}`;
+                timelineEl.appendChild(row);
+            });
+
+        } catch (_) {
+            /* timeline is non-fatal */
+        }
+    }
+
+    async function applyTransition() {
+        clearError();
+        const target = selectEl.value;
+
+        try {
+            const resp = await fetch(
+                `/lims/workflows/${kind}/${id}/`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": csrfToken,
+                    },
+                    body: JSON.stringify({ status: target }),
+                }
+            );
+
+            if (resp.status === 403) {
+                showError("You are not permitted to perform this action.");
+                return;
+            }
+
+            if (resp.status === 409) {
+                const data = await resp.json();
+                showError(data.detail || "Invalid transition.");
+                return;
+            }
+
+            if (!resp.ok) {
+                showError("Unexpected error.");
+                return;
+            }
+
+            loadState();
+
+        } catch (err) {
+            showError(err.message);
+        }
+    }
+
+    applyBtn.addEventListener("click", applyTransition);
+
+    loadState();
+})();
+</script>

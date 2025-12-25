@@ -1,0 +1,17 @@
+{% extends "lims_core/base.html" %}
+
+{% block title %}Sample {{ sample.code }}{% endblock %}
+
+{% block content %}
+<h2>Sample {{ sample.code }}</h2>
+
+<p><strong>Current status:</strong> {{ sample.status }}</p>
+
+<hr>
+
+{% include "lims_core/workflow_widget.html" with
+    workflow_kind="sample"
+    workflow_object_id=sample.id
+%}
+
+{% endblock %}
