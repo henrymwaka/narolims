@@ -1,46 +1,45 @@
-# ---- Python ----
+###############################################################################
+# NARO-LIMS .gitignore
+# Purpose: Prevent accidental commits of generated, local, or sensitive files
+###############################################################################
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 *.pyd
 *.so
 *.egg-info/
 .eggs/
+.pytest_cache/
+.mypy_cache/
 
-# ---- Virtual environments ----
-.venv/
-env/
-ENV/
+# ---------------------------------------------------------------------------
+# Virtual environments
+# ---------------------------------------------------------------------------
 venv/
+.venv/
+ENV/
+env/
 
-# ---- Django ----
+# ---------------------------------------------------------------------------
+# Django
+# ---------------------------------------------------------------------------
 db.sqlite3
+db.sqlite3-journal
 /media/
-/staticfiles/
 /static/
+/staticfiles/
 /logs/
 
-# Celery / background tasks
-celerybeat-schedule
-celerybeat.pid
-
-# ---- Environment & config ----
+# Django secrets
 .env
+.env.*
 *.local
 
-# ---- Runtime / local artifacts ----
-cookies.txt
-nano
-h origin*
-*.log
-
-# ---- IDEs & editors ----
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# ---- OS files ----
-.DS_Store
-Thumbs.db
+# ---------------------------------------------------------------------------
+# Celery / background processing
+# ---------------------------------------------------------------------------
+celerybeat-schedule
+celeryb
