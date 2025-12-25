@@ -28,8 +28,14 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    env:
+      DJANGO_SETTINGS_MODULE: naro_lims.settings
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/narolims
+      PYTHONUNBUFFERED: 1
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,9 +47,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run database migrations
+        run: |
+          python manage.py migrate --noinput
+
       - name: Run guardrails
-        env:
-          DJANGO_SETTINGS_MODULE: naro_lims.settings
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/narolims
         run: |
           make guardrails
