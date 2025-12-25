@@ -29,8 +29,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -45,8 +44,6 @@ jobs:
       - name: Run guardrails
         env:
           DJANGO_SETTINGS_MODULE: naro_lims.settings
-          SECRET_KEY: ci-secret-key
-          DEBUG: "false"
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/narolims
         run: |
-          make check
+          make guardrails
