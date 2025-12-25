@@ -1,11 +1,15 @@
-# ============================
-# NARO LIMS – CI-safe Makefile
-# ============================
+# LIMS Makefile (CI-safe, venv-agnostic)
 
-PYTHON ?= python
+PYTHON ?= python3
 MANAGE := $(PYTHON) manage.py
 
-.PHONY: guardrails test migrate check
+.PHONY: check migrate guardrails test
+
+check: migrate guardrails
+
+migrate:
+	@echo "Running migrations..."
+	$(MANAGE) migrate --noinput
 
 guardrails:
 	@echo "Running LIMS guardrail tests..."
@@ -13,10 +17,4 @@ guardrails:
 		lims_core.tests.test_status_workflows \
 		lims_core.tests.test_write_guardrails
 
-migrate:
-	@echo "Running database migrations..."
-	$(MANAGE) migrate --noinput
-
-test: guardrails
-
-check: migrate guardrails
+test: check
