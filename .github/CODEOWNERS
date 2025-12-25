@@ -1,0 +1,75 @@
+###############################################################################
+# CODEOWNERS — NARO-LIMS
+#
+# Purpose:
+#  - Enforce review responsibility
+#  - Protect critical subsystems
+#  - Support audit, compliance, and traceability
+#
+# Rules:
+#  - The last matching rule takes precedence
+#  - Owners must approve PRs touching protected paths
+###############################################################################
+
+# ---------------------------------------------------------------------------
+# Default ownership (entire repository)
+# ---------------------------------------------------------------------------
+* @henrymwaka
+
+# ---------------------------------------------------------------------------
+# Core application logic (highest risk)
+# ---------------------------------------------------------------------------
+lims_core/ @henrymwaka
+naro_lims/ @henrymwaka
+
+# ---------------------------------------------------------------------------
+# Workflow engine, permissions, guardrails
+# ---------------------------------------------------------------------------
+lims_core/workflows/ @henrymwaka
+lims_core/permissions.py @henrymwaka
+lims_core/middleware.py @henrymwaka
+GUARDRAILS.md @henrymwaka
+
+# ---------------------------------------------------------------------------
+# Security-sensitive documentation
+# ---------------------------------------------------------------------------
+SECURITY.md @henrymwaka
+DEPLOYMENT.md @henrymwaka
+OPERATIONS.md @henrymwaka
+
+# ---------------------------------------------------------------------------
+# CI/CD and automation
+# ---------------------------------------------------------------------------
+.github/ @henrymwaka
+.github/workflows/ @henrymwaka
+Makefile @henrymwaka
+.git/hooks/ @henrymwaka
+
+# ---------------------------------------------------------------------------
+# Database and migrations
+# ---------------------------------------------------------------------------
+lims_core/migrations/ @henrymwaka
+
+# ---------------------------------------------------------------------------
+# Tests (guardrail enforcement)
+# ---------------------------------------------------------------------------
+lims_core/tests/ @henrymwaka
+pytest.ini @henrymwaka
+
+# ---------------------------------------------------------------------------
+# Release management
+# ---------------------------------------------------------------------------
+CHANGELOG.md @henrymwaka
+RELEASE_NOTES/ @henrymwaka
+
+# ---------------------------------------------------------------------------
+# Documentation
+# ---------------------------------------------------------------------------
+README.md @henrymwaka
+ARCHITECTURE.md @henrymwaka
+docs/ @henrymwaka
+
+# ---------------------------------------------------------------------------
+# Scripts and bootstrap tooling
+# ---------------------------------------------------------------------------
+*.sh @henrymwaka
