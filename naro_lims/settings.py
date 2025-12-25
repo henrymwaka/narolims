@@ -73,7 +73,6 @@ INSTALLED_APPS = [
     "lims_core.apps.LimsCoreConfig",
 ]
 
-# --- Celery extensions (added cleanly) ---
 INSTALLED_APPS += [
     "django_celery_results",
     "django_celery_beat",
@@ -179,9 +178,8 @@ CORS_ALLOW_ALL_ORIGINS = True
 # ===============================================================
 REST_FRAMEWORK = {
 
-    # Session auth MUST come first for browser workflows
+    # API-safe: NO session auth, NO redirects
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.SessionAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
 
@@ -236,7 +234,7 @@ SIMPLE_JWT = {
 
 
 # ===============================================================
-# Celery configuration (Step 12.06)
+# Celery configuration
 # ===============================================================
 CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
 CELERY_RESULT_BACKEND = "django-db"

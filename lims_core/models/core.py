@@ -5,6 +5,8 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.conf import settings
 
+from lims_core.workflows.guards import WorkflowWriteGuardMixin
+
 
 # ============================================================
 # Base
@@ -128,9 +130,11 @@ class Project(TimeStampedModel):
 
 
 # ============================================================
-# Sample
+# Sample (workflow-controlled)
 # ============================================================
-class Sample(TimeStampedModel):
+class Sample(WorkflowWriteGuardMixin, TimeStampedModel):
+    WORKFLOW_FIELD = "status"
+
     laboratory = models.ForeignKey(
         Laboratory,
         on_delete=models.PROTECT,
@@ -146,7 +150,13 @@ class Sample(TimeStampedModel):
 
     sample_id = models.CharField(max_length=100, unique=True)
     sample_type = models.CharField(max_length=50)
-    status = models.CharField(max_length=50, default="REGISTERED")
+
+    # Initial state only, transitions via execute_transition()
+    status = models.CharField(
+        max_length=50,
+        default="REGISTERED",
+        editable=False,
+    )
 
     def clean(self):
         if self.laboratory and self.project.laboratory:
@@ -158,9 +168,11 @@ class Sample(TimeStampedModel):
 
 
 # ============================================================
-# Experiment
+# Experiment (workflow-controlled)
 # ============================================================
-class Experiment(TimeStampedModel):
+class Experiment(WorkflowWriteGuardMixin, TimeStampedModel):
+    WORKFLOW_FIELD = "status"
+
     laboratory = models.ForeignKey(
         Laboratory,
         on_delete=models.PROTECT,
@@ -175,7 +187,13 @@ class Experiment(TimeStampedModel):
     )
 
     name = models.CharField(max_length=255)
-    status = models.CharField(max_length=50, default="PLANNED")
+
+    # Initial state only, transitions via execute_transition()
+    status = models.CharField(
+        max_length=50,
+        default="PLANNED",
+        editable=False,
+    )
 
     def clean(self):
         if self.laboratory and self.project.laboratory:

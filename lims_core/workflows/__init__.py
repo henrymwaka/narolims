@@ -4,6 +4,7 @@ from .rules import (
     required_roles,
     allowed_transitions,
     workflow_definition,
+    normalize_role,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "required_roles",
     "allowed_transitions",
     "workflow_definition",
+    "normalize_role",
 ]

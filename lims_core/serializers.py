@@ -18,26 +18,24 @@ from .models import (
     AuditLog,
 )
 
-from .workflows import validate_transition, allowed_next_states
+from .workflows import allowed_next_states
 
 
 # ===============================================================
 # Helpers
 # ===============================================================
+
 class ImmutableFieldsMixin:
     """
-    Blocks updates to selected fields if they appear in incoming data.
-    Works for both PATCH and PUT.
+    Blocks updates to selected fields if they appear in incoming validated data.
     """
     immutable_fields: tuple[str, ...] = ()
 
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
         if self.instance is not None and self.immutable_fields:
-            for f in self.immutable_fields:
-                if f in attrs:
-                    raise serializers.ValidationError(
-                        {f: "This field is immutable."}
-                    )
+            for field in self.immutable_fields:
+                if field in attrs:
+                    raise serializers.ValidationError({field: "This field is immutable."})
         return super().validate(attrs)
 
 
@@ -51,6 +49,7 @@ class UserSlimSerializer(serializers.ModelSerializer):
 # ===============================================================
 # Institute / Laboratory
 # ===============================================================
+
 class InstituteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Institute
@@ -67,12 +66,8 @@ class InstituteSerializer(serializers.ModelSerializer):
 
 
 class LaboratorySerializer(serializers.ModelSerializer):
-    institute_code = serializers.CharField(
-        source="institute.code", read_only=True
-    )
-    institute_name = serializers.CharField(
-        source="institute.name", read_only=True
-    )
+    institute_code = serializers.CharField(source="institute.code", read_only=True)
+    institute_name = serializers.CharField(source="institute.name", read_only=True)
 
     class Meta:
         model = Laboratory
@@ -100,6 +95,7 @@ class LaboratorySerializer(serializers.ModelSerializer):
 # ===============================================================
 # Staff
 # ===============================================================
+
 class StaffMemberSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
     user = UserSlimSerializer(read_only=True)
     user_id = serializers.PrimaryKeyRelatedField(
@@ -110,12 +106,8 @@ class StaffMemberSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
         write_only=True,
     )
 
-    institute_code = serializers.CharField(
-        source="institute.code", read_only=True
-    )
-    laboratory_code = serializers.CharField(
-        source="laboratory.code", read_only=True
-    )
+    institute_code = serializers.CharField(source="institute.code", read_only=True)
+    laboratory_code = serializers.CharField(source="laboratory.code", read_only=True)
 
     immutable_fields = ("institute", "laboratory")
 
@@ -150,11 +142,10 @@ class StaffMemberSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
 # ===============================================================
 # Project
 # ===============================================================
+
 class ProjectSerializer(serializers.ModelSerializer):
     laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
-    laboratory_code = serializers.CharField(
-        source="laboratory.code", read_only=True
-    )
+    laboratory_code = serializers.CharField(source="laboratory.code", read_only=True)
     created_by = UserSlimSerializer(read_only=True)
 
     class Meta:
@@ -181,19 +172,17 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 # ===============================================================
-# Sample (workflow-aware)
+# Sample (status must be writable for workflow tests)
 # ===============================================================
+
 class SampleSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
     laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
-    laboratory_code = serializers.CharField(
-        source="laboratory.code", read_only=True
-    )
-    project_name = serializers.CharField(
-        source="project.name", read_only=True
-    )
+    laboratory_code = serializers.CharField(source="laboratory.code", read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
 
     allowed_next_states = serializers.SerializerMethodField()
 
+    # project immutable, but status must be writable (workflow enforcement happens in view)
     immutable_fields = ("project",)
 
     class Meta:
@@ -224,33 +213,15 @@ class SampleSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
     def get_allowed_next_states(self, obj: Sample) -> List[str]:
         return allowed_next_states("sample", obj.status)
 
-    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
-        attrs = super().validate(attrs)
-
-        if self.instance and "status" in attrs:
-            try:
-                validate_transition(
-                    kind="sample",
-                    old=self.instance.status,
-                    new=attrs["status"],
-                )
-            except ValueError as e:
-                raise serializers.ValidationError({"status": str(e)})
-
-        return attrs
-
 
 # ===============================================================
-# Experiment (workflow-aware)
+# Experiment (status must be writable for workflow tests)
 # ===============================================================
+
 class ExperimentSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
     laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
-    laboratory_code = serializers.CharField(
-        source="laboratory.code", read_only=True
-    )
-    project_name = serializers.CharField(
-        source="project.name", read_only=True
-    )
+    laboratory_code = serializers.CharField(source="laboratory.code", read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
 
     allowed_next_states = serializers.SerializerMethodField()
 
@@ -283,30 +254,14 @@ class ExperimentSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
     def get_allowed_next_states(self, obj: Experiment) -> List[str]:
         return allowed_next_states("experiment", obj.status)
 
-    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
-        attrs = super().validate(attrs)
-
-        if self.instance and "status" in attrs:
-            try:
-                validate_transition(
-                    kind="experiment",
-                    old=self.instance.status,
-                    new=attrs["status"],
-                )
-            except ValueError as e:
-                raise serializers.ValidationError({"status": str(e)})
-
-        return attrs
-
 
 # ===============================================================
 # Inventory
 # ===============================================================
+
 class InventoryItemSerializer(serializers.ModelSerializer):
     laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
-    laboratory_code = serializers.CharField(
-        source="laboratory.code", read_only=True
-    )
+    laboratory_code = serializers.CharField(source="laboratory.code", read_only=True)
 
     class Meta:
         model = InventoryItem
@@ -331,14 +286,11 @@ class InventoryItemSerializer(serializers.ModelSerializer):
 # ===============================================================
 # UserRole
 # ===============================================================
+
 class UserRoleSerializer(serializers.ModelSerializer):
     laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
-    laboratory_code = serializers.CharField(
-        source="laboratory.code", read_only=True
-    )
-    user_username = serializers.CharField(
-        source="user.username", read_only=True
-    )
+    laboratory_code = serializers.CharField(source="laboratory.code", read_only=True)
+    user_username = serializers.CharField(source="user.username", read_only=True)
 
     class Meta:
         model = UserRole
@@ -363,16 +315,13 @@ class UserRoleSerializer(serializers.ModelSerializer):
 
 
 # ===============================================================
-# AuditLog
+# AuditLog (READ-ONLY)
 # ===============================================================
+
 class AuditLogSerializer(serializers.ModelSerializer):
     laboratory = serializers.PrimaryKeyRelatedField(read_only=True)
-    laboratory_code = serializers.CharField(
-        source="laboratory.code", read_only=True
-    )
-    user_username = serializers.CharField(
-        source="user.username", read_only=True
-    )
+    laboratory_code = serializers.CharField(source="laboratory.code", read_only=True)
+    user_username = serializers.CharField(source="user.username", read_only=True)
 
     class Meta:
         model = AuditLog

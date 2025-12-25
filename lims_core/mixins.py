@@ -17,6 +17,7 @@ except Exception:
 # ===============================================================
 # Utilities
 # ===============================================================
+
 def _model_has_field(model_cls, field_name: str) -> bool:
     try:
         model_cls._meta.get_field(field_name)
@@ -45,19 +46,21 @@ def _get_user_scope(user):
 
     if _model_has_field(qs.model, "laboratory"):
         lab_ids |= set(
-            qs.exclude(laboratory__isnull=True).values_list("laboratory_id", flat=True)
+            qs.exclude(laboratory__isnull=True)
+              .values_list("laboratory_id", flat=True)
         )
 
     if _model_has_field(qs.model, "institute"):
         institute_ids |= set(
-            qs.exclude(institute__isnull=True).values_list("institute_id", flat=True)
+            qs.exclude(institute__isnull=True)
+              .values_list("institute_id", flat=True)
         )
 
     if institute_ids and Laboratory and _model_has_field(Laboratory, "institute"):
         lab_ids |= set(
-            Laboratory.objects.filter(institute_id__in=institute_ids).values_list(
-                "id", flat=True
-            )
+            Laboratory.objects.filter(
+                institute_id__in=institute_ids
+            ).values_list("id", flat=True)
         )
 
     return lab_ids, institute_ids
@@ -77,17 +80,10 @@ def _deny_if_payload_has(request, fields: list[str], message: str):
 # ===============================================================
 # Lab-scoped queryset mixin (READ)
 # ===============================================================
+
 class LabScopedQuerysetMixin:
     """
     Enforces lab scoping for models with a `laboratory` FK.
-
-    Rules:
-    - Superuser:
-        - With ?lab= → scoped
-        - Without ?lab= → global read access
-    - Normal users:
-        - Must resolve exactly one lab (explicit or auto)
-        - Otherwise see nothing
     """
 
     lab_field_name = "laboratory"
@@ -113,12 +109,15 @@ class LabScopedQuerysetMixin:
         if not lab_ids:
             return base_qs.none()
 
-        return base_qs.filter(**{f"{self.lab_field_name}_id__in": list(lab_ids)})
+        return base_qs.filter(
+            **{f"{self.lab_field_name}_id__in": list(lab_ids)}
+        )
 
 
 # ===============================================================
 # Lab-scoped create mixin (WRITE)
 # ===============================================================
+
 class LabScopedCreateMixin:
     """
     On create:
@@ -156,7 +155,9 @@ class LabScopedCreateMixin:
                 raise PermissionDenied("Superuser must explicitly specify laboratory.")
             allowed = list(allowed or [])
             if len(allowed) == 1:
-                return serializer.save(**{f"{self.lab_field_name}_id": allowed[0]})
+                return serializer.save(
+                    **{f"{self.lab_field_name}_id": allowed[0]}
+                )
             raise PermissionDenied("laboratory is required.")
 
         self.assert_lab_allowed(lab_id)
@@ -166,6 +167,7 @@ class LabScopedCreateMixin:
 # ===============================================================
 # Audit logging
 # ===============================================================
+
 class AuditLogMixin:
     """
     Emits CREATE / UPDATE / DELETE audit records.
@@ -178,11 +180,8 @@ class AuditLogMixin:
         return None
 
     def _log(self, user, action, details=None, lab_id=None):
-        """
-        Import AuditLog lazily to avoid circular imports during app init.
-        """
         try:
-            from .models import AuditLog  # local import prevents circular imports
+            from .models import AuditLog
 
             payload = {
                 "user": user if user and user.is_authenticated else None,
@@ -191,6 +190,7 @@ class AuditLogMixin:
             }
             if lab_id and _model_has_field(AuditLog, "laboratory"):
                 payload["laboratory_id"] = lab_id
+
             AuditLog.objects.create(**payload)
         except Exception:
             pass
@@ -228,6 +228,7 @@ class AuditLogMixin:
 # ===============================================================
 # Workflow Transition Enforcement (View-level)
 # ===============================================================
+
 from .workflows import validate_transition
 
 
@@ -237,13 +238,9 @@ class WorkflowTransitionMixin:
 
     ViewSets using this mixin must define:
       - workflow_kind = "sample" | "experiment"
-
-    Note:
-      This mixin only validates transition legality (old -> new).
-      Role checks and event logging belong in workflow service/runtime views.
     """
 
-    workflow_kind: str = None  # must be set in subclass
+    workflow_kind: str = None
 
     def perform_update(self, serializer):
         instance = self.get_object()
@@ -265,15 +262,17 @@ class WorkflowTransitionMixin:
 
 
 # ===============================================================
-# Workflow Write Guard (Model-level)
+# Workflow Write Guard (Model-level, HARD ENFORCEMENT)
 # ===============================================================
+
 class WorkflowWriteGuardMixin(models.Model):
     """
-    Prevents direct modification of workflow-controlled fields
-    outside the workflow engine.
+    HARD guard: prevents direct modification of workflow-controlled fields.
 
-    Models inheriting this mixin should be transitioned via workflow APIs,
-    not direct saves or serializer updates.
+    This ensures:
+      - No `obj.status = X; obj.save()`
+      - No silent serializer bypass
+      - Only workflow engine can change state (via .update())
     """
 
     WORKFLOW_FIELD = "status"
@@ -282,10 +281,10 @@ class WorkflowWriteGuardMixin(models.Model):
         abstract = True
 
     def save(self, *args, **kwargs):
-        # Only guard updates to existing records.
         if self.pk is not None and self.WORKFLOW_FIELD:
             old = (
-                self.__class__.objects.filter(pk=self.pk)
+                self.__class__.objects
+                .filter(pk=self.pk)
                 .values_list(self.WORKFLOW_FIELD, flat=True)
                 .first()
             )
@@ -294,7 +293,7 @@ class WorkflowWriteGuardMixin(models.Model):
             if old != new:
                 raise DjangoPermissionDenied(
                     f"Direct modification of '{self.WORKFLOW_FIELD}' is forbidden. "
-                    "Use workflow transition APIs."
+                    "Use execute_transition()."
                 )
 
         return super().save(*args, **kwargs)

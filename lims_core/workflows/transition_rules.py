@@ -1,3 +1,8 @@
+# ⚠️ LEGACY FILE
+# Not used by the active workflow engine.
+# Kept temporarily for reference only.
+# DO NOT MODIFY OR USE.
+
 """
 Authoritative workflow transition rules for Sample objects.
 

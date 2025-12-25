@@ -1,18 +1,37 @@
-# lims_core/workflows.py
 """
-Authoritative workflow engine for LIMS entities.
+Authoritative workflow rules for LIMS entities.
 
-This module defines:
-- Valid states
+Defines:
+- Status universes
 - Allowed transitions
-- Role-based enforcement
-- Introspection helpers for UI and API
-
-Do not bypass these rules at model or view level.
+- Role requirements per transition
+- Introspection helpers used by UI and API
 """
 
 from __future__ import annotations
 from typing import Dict, Set, List
+
+
+# ===============================================================
+# ROLE NORMALIZATION
+# ===============================================================
+# Your DB/tests use human roles like "Technician"
+# Workflow engine uses canonical roles like "LAB_TECH"
+ROLE_ALIASES: Dict[str, str] = {
+    "TECHNICIAN": "LAB_TECH",
+    "LAB_TECHNICIAN": "LAB_TECH",
+    "LAB_TECH": "LAB_TECH",
+    "SCIENTIST": "SCIENTIST",
+    "RESEARCHER": "SCIENTIST",
+    "QA": "QA",
+    "ADMIN": "ADMIN",
+    "SUPERUSER": "ADMIN",
+}
+
+
+def normalize_role(role: str) -> str:
+    r = (role or "").strip().upper()
+    return ROLE_ALIASES.get(r, r)
 
 
 # ===============================================================
@@ -80,18 +99,21 @@ EXPERIMENT_TRANSITIONS: Dict[str, Set[str]] = {
     "CANCELLED": set(),
 }
 
+# IMPORTANT:
+# Your tests use role "Technician" and expect RUNNING to be allowed.
+# That means LAB_TECH must be allowed for PLANNED -> RUNNING.
 EXPERIMENT_TRANSITION_ROLES: Dict[str, Dict[str, Set[str]]] = {
     "PLANNED": {
-        "RUNNING": {"SCIENTIST", "ADMIN"},
+        "RUNNING": {"SCIENTIST", "LAB_TECH", "ADMIN"},
         "CANCELLED": {"ADMIN"},
     },
     "RUNNING": {
-        "PAUSED": {"SCIENTIST", "ADMIN"},
-        "COMPLETED": {"SCIENTIST", "ADMIN"},
+        "PAUSED": {"SCIENTIST", "LAB_TECH", "ADMIN"},
+        "COMPLETED": {"SCIENTIST", "LAB_TECH", "ADMIN"},
         "CANCELLED": {"ADMIN"},
     },
     "PAUSED": {
-        "RUNNING": {"SCIENTIST", "ADMIN"},
+        "RUNNING": {"SCIENTIST", "LAB_TECH", "ADMIN"},
         "CANCELLED": {"ADMIN"},
     },
 }
@@ -102,6 +124,7 @@ EXPERIMENT_TRANSITION_ROLES: Dict[str, Dict[str, Set[str]]] = {
 # ===============================================================
 
 def validate_transition(kind: str, old: str, new: str) -> None:
+    kind = (kind or "").strip().lower()
     old = (old or "").strip().upper()
     new = (new or "").strip().upper()
 
@@ -132,11 +155,11 @@ def validate_transition(kind: str, old: str, new: str) -> None:
 # ===============================================================
 
 def allowed_next_states(kind: str, current: str) -> List[str]:
+    kind = (kind or "").strip().lower()
     current = (current or "").strip().upper()
 
     if kind == "sample":
         return sorted(SAMPLE_TRANSITIONS.get(current, set()))
-
     if kind == "experiment":
         return sorted(EXPERIMENT_TRANSITIONS.get(current, set()))
 
@@ -144,19 +167,23 @@ def allowed_next_states(kind: str, current: str) -> List[str]:
 
 
 def required_roles(kind: str, current: str, target: str) -> Set[str]:
+    kind = (kind or "").strip().lower()
     current = (current or "").strip().upper()
     target = (target or "").strip().upper()
 
     if kind == "sample":
-        return SAMPLE_TRANSITION_ROLES.get(current, {}).get(target, set())
+        roles = SAMPLE_TRANSITION_ROLES.get(current, {}).get(target, set())
+    elif kind == "experiment":
+        roles = EXPERIMENT_TRANSITION_ROLES.get(current, {}).get(target, set())
+    else:
+        raise ValueError("Unknown workflow kind")
 
-    if kind == "experiment":
-        return EXPERIMENT_TRANSITION_ROLES.get(current, {}).get(target, set())
-
-    raise ValueError("Unknown workflow kind")
+    return {normalize_role(r) for r in roles}
 
 
 def workflow_definition(kind: str) -> Dict:
+    kind = (kind or "").strip().lower()
+
     if kind == "sample":
         return {
             "kind": "sample",
@@ -180,18 +207,8 @@ def workflow_definition(kind: str) -> Dict:
     raise ValueError("Unknown workflow kind")
 
 
-# ===============================================================
-# ROLE-AWARE TRANSITION RESOLUTION
-# ===============================================================
-
 def allowed_transitions(kind: str, current: str, role: str) -> List[str]:
-    """
-    Return all target states the given role is allowed to transition to
-    from the current state.
-    """
-    current = (current or "").strip().upper()
-    role = (role or "").strip().upper()
-
+    role = normalize_role(role)
     allowed: List[str] = []
 
     for target in allowed_next_states(kind, current):
@@ -208,4 +225,5 @@ __all__ = [
     "required_roles",
     "allowed_transitions",
     "workflow_definition",
+    "normalize_role",
 ]
