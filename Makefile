@@ -1,5 +1,4 @@
-VENV := venv
-PYTHON := $(VENV)/bin/python
+PYTHON ?= python3
 MANAGE := $(PYTHON) manage.py
 
 .PHONY: guardrails test
