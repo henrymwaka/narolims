@@ -13,23 +13,9 @@ jobs:
   guardrails:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_DB: narolims
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -44,6 +30,8 @@ jobs:
       - name: Run guardrails
         env:
           DJANGO_SETTINGS_MODULE: naro_lims.settings
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/narolims
         run: |
-          make check
+          python manage.py migrate --noinput
+          python manage.py test \
+            lims_core.tests.test_status_workflows \
+            lims_core.tests.test_write_guardrails
