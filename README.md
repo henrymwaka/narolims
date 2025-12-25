@@ -230,3 +230,4 @@ Maintainer
 
 Developed and maintained by Henry Mwaka
 GitHub: https://github.com/henrymwaka
+TODO (resume): Continue core NARO-LIMS feature development starting from domain workflows and sample lifecycle; governance, CI, guardrails, and documentation are intentionally frozen at this point.
