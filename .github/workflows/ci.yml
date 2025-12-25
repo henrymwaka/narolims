@@ -2,16 +2,18 @@ name: LIMS CI
 
 on:
   push:
-    branches:
-      - main
-      - feature/**
+    branches: [ main, feature/** ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   guardrails:
     runs-on: ubuntu-latest
+
+    env:
+      DJANGO_SETTINGS_MODULE: naro_lims.settings
+      DJANGO_ENV: ci
+      DATABASE_URL: sqlite:///db.sqlite3
 
     steps:
       - name: Checkout code
@@ -28,10 +30,5 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run guardrails
-        env:
-          DJANGO_SETTINGS_MODULE: naro_lims.settings
         run: |
-          python manage.py migrate --noinput
-          python manage.py test \
-            lims_core.tests.test_status_workflows \
-            lims_core.tests.test_write_guardrails
+          make guardrails

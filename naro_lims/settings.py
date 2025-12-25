@@ -8,6 +8,7 @@ from pathlib import Path
 from decouple import config
 from datetime import timedelta
 from celery.schedules import crontab
+import os
 
 
 # ===============================================================
@@ -71,9 +72,6 @@ INSTALLED_APPS = [
     "drf_spectacular_sidecar",
 
     "lims_core.apps.LimsCoreConfig",
-]
-
-INSTALLED_APPS += [
     "django_celery_results",
     "django_celery_beat",
 ]
@@ -122,16 +120,26 @@ TEMPLATES = [
 # ===============================================================
 # Database
 # ===============================================================
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("DB_NAME", default="narolims_db"),
-        "USER": config("DB_USER", default="narolims_user"),
-        "PASSWORD": config("DB_PASSWORD", default="StrongPasswordHere"),
-        "HOST": config("DB_HOST", default="127.0.0.1"),
-        "PORT": config("DB_PORT", default="5432"),
+DJANGO_ENV = os.environ.get("DJANGO_ENV", "").lower()
+
+if DJANGO_ENV in {"ci", "test"}:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": config("DB_NAME", default="narolims_db"),
+            "USER": config("DB_USER", default="narolims_user"),
+            "PASSWORD": config("DB_PASSWORD", default="StrongPasswordHere"),
+            "HOST": config("DB_HOST", default="127.0.0.1"),
+            "PORT": config("DB_PORT", default="5432"),
+        }
+    }
 
 
 # ===============================================================
@@ -177,25 +185,19 @@ CORS_ALLOW_ALL_ORIGINS = True
 # Django REST Framework
 # ===============================================================
 REST_FRAMEWORK = {
-
-    # API-safe: NO session auth, NO redirects
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
-
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
-
     "DEFAULT_RENDERER_CLASSES": (
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
     ),
-
     "DEFAULT_FILTER_BACKENDS": (
         "django_filters.rest_framework.DjangoFilterBackend",
     ),
-
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "naro_lims.pagination.DefaultPagination",
     "PAGE_SIZE": 50,
