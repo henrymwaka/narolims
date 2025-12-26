@@ -28,6 +28,7 @@ from .views import (
 # -------------------------------------------------
 from .views_ui import (
     workflow_widget_demo,
+    sample_list,
     sample_detail,
     experiment_detail,
 )
@@ -217,6 +218,7 @@ urlpatterns = [
     # UI demos / HTML pages
     # ============================================================
     path("ui/workflow-demo/", workflow_widget_demo, name="workflow-demo"),
+    path("ui/samples/", sample_list, name="sample-list-html"),
     path("ui/samples/<int:pk>/", sample_detail, name="sample-detail-html"),
     path("ui/experiments/<int:pk>/", experiment_detail, name="experiment-detail-html"),
 ]

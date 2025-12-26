@@ -1,0 +1,81 @@
+{% extends "lims_core/base.html" %}
+{% load static %}
+
+{% block title %}Samples{% endblock %}
+
+{% block content %}
+<h2>Samples</h2>
+
+<div style="margin-bottom: 12px;">
+  <a href="/lims/ui/workflow-demo/">Workflow demo</a>
+</div>
+
+<div class="workflow-card" style="padding:12px; border:1px solid #ddd; border-radius:8px; margin-bottom: 14px;">
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <div>
+      <label><strong>Target status</strong></label><br>
+      <select id="bulk-target">
+        <option value="">-- choose --</option>
+        {% for s in workflow_statuses %}
+          <option value="{{ s }}">{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label><strong>Comment</strong></label><br>
+      <input id="bulk-comment" type="text" placeholder="optional note" style="min-width:280px;">
+    </div>
+
+    <div style="padding-top: 18px;">
+      <button id="bulk-apply" disabled>Apply to selected</button>
+    </div>
+
+    <div style="padding-top: 18px;">
+      <span id="bulk-count" style="opacity:0.8;">0 selected</span>
+    </div>
+  </div>
+
+  <div id="bulk-error" style="display:none; margin-top:10px; color:#b00020;"></div>
+  <pre id="bulk-result" style="display:none; margin-top:10px; background:#f7f7f7; padding:10px; border-radius:6px; overflow:auto;"></pre>
+</div>
+
+<table style="width:100%; border-collapse: collapse;">
+  <thead>
+    <tr>
+      <th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">
+        <input type="checkbox" id="check-all">
+      </th>
+      <th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">ID</th>
+      <th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">Sample ID</th>
+      <th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">Status</th>
+      <th style="text-align:left; border-bottom:1px solid #ddd; padding:8px;">Link</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in samples %}
+      <tr data-sample-id="{{ s.id }}">
+        <td style="border-bottom:1px solid #eee; padding:8px;">
+          <input class="row-check" type="checkbox" value="{{ s.id }}">
+        </td>
+        <td style="border-bottom:1px solid #eee; padding:8px;">{{ s.id }}</td>
+        <td style="border-bottom:1px solid #eee; padding:8px;">{{ s.sample_id }}</td>
+        <td class="status-cell" style="border-bottom:1px solid #eee; padding:8px;">{{ s.status }}</td>
+        <td style="border-bottom:1px solid #eee; padding:8px;">
+          <a href="/lims/ui/samples/{{ s.id }}/">open</a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" style="padding:10px;">No samples found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+  window.NAROLIMS_UI = {
+    bulkUrl: "/lims/workflows/sample/bulk/",
+    labId: "{{ lab_id }}",
+  };
+</script>
+<script src="{% static 'lims_core/js/workflow_bulk.js' %}"></script>
+{% endblock %}
