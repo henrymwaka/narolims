@@ -47,3 +47,5 @@ lims_core/workflows_py_unused.bak
 
 # local curl cookie jar
 cookies.txt
+cookies.txt
+lims_core/management/commands/show_urls.py
