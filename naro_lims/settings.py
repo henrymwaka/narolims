@@ -23,17 +23,29 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config("SECRET_KEY", default="insecure-key-change-me")
 DEBUG = config("DEBUG", default=False, cast=bool)
 
-ALLOWED_HOSTS = config(
+# ALLOWED_HOSTS is frequently overridden by .env
+# Make it resilient:
+# - strip whitespace
+# - drop empty entries
+# - convert "*.domain" to ".domain" (Django expects leading dot, not wildcard)
+# - always include "testserver" for Django test client
+_raw_hosts = config(
     "ALLOWED_HOSTS",
-    default=(
-        "narolims.reslab.dev,"
-        "www.narolims.reslab.dev,"
-        "127.0.0.1,"
-        "localhost,"
-        "testserver,"
-        ".reslab.dev"
-    ),
-).split(",")
+    default="narolims.reslab.dev,www.narolims.reslab.dev,127.0.0.1,localhost,testserver,.reslab.dev",
+)
+
+ALLOWED_HOSTS = [h.strip() for h in str(_raw_hosts).split(",") if h.strip()]
+
+_fixed_hosts = []
+for h in ALLOWED_HOSTS:
+    if h.startswith("*."):
+        _fixed_hosts.append("." + h[2:])
+    else:
+        _fixed_hosts.append(h)
+ALLOWED_HOSTS = _fixed_hosts
+
+if "testserver" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("testserver")
 
 
 # ---------------------------------------------------------------
@@ -63,14 +75,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "django_filters",
     "drf_spectacular",
     "drf_spectacular_sidecar",
-
     "lims_core.apps.LimsCoreConfig",
     "django_celery_results",
     "django_celery_beat",
@@ -82,7 +92,6 @@ INSTALLED_APPS = [
 # ===============================================================
 MIDDLEWARE = [
     "lims_core.middleware.CurrentUserMiddleware",
-
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

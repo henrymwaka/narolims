@@ -9,35 +9,67 @@ Defines:
 """
 
 from __future__ import annotations
+
 from typing import Dict, Set, List
+import re
 
 
 # ===============================================================
 # ROLE NORMALIZATION
 # ===============================================================
-# Your DB/tests use human roles like "Technician"
-# Workflow engine uses canonical roles like "LAB_TECH"
+# Normalize user-provided / DB roles into canonical workflow roles.
+#
+# Examples handled:
+# - "Technician" -> LAB_TECH
+# - "Lab Technician" -> LAB_TECH
+# - "LAB TECHNICIAN" -> LAB_TECH
+# - "lab-tech" -> LAB_TECH
+# - "lab_tech" -> LAB_TECH
 ROLE_ALIASES: Dict[str, str] = {
     "TECHNICIAN": "LAB_TECH",
     "LAB_TECHNICIAN": "LAB_TECH",
     "LAB_TECH": "LAB_TECH",
+    "LABTECH": "LAB_TECH",
+    "LAB_TECHNOLOGIST": "LAB_TECH",  # optional, harmless
     "SCIENTIST": "SCIENTIST",
     "RESEARCHER": "SCIENTIST",
     "QA": "QA",
+    "Q_A": "QA",
     "ADMIN": "ADMIN",
     "SUPERUSER": "ADMIN",
 }
 
 
 def normalize_role(role: str) -> str:
+    """
+    Canonicalize role strings so that small formatting differences
+    do not break permission logic.
+
+    Steps:
+    1) Uppercase and strip
+    2) Convert whitespace and hyphens to underscores
+    3) Collapse repeated underscores
+    4) Apply alias mapping
+    """
     r = (role or "").strip().upper()
+    if not r:
+        return r
+
+    # Convert runs of spaces and hyphens into underscores
+    r = re.sub(r"[\s\-]+", "_", r)
+
+    # Collapse multiple underscores
+    r = re.sub(r"_+", "_", r)
+
+    # Some people type "LABTECH" without separators
+    r = r.replace("LABTECHNICIAN", "LAB_TECHNICIAN").replace("LABTECH", "LABTECH")
+
     return ROLE_ALIASES.get(r, r)
 
 
 # ===============================================================
-# SAMPLE WORKFLOW
+# SAMPLE WORKFLOW (canonical lifecycle)
 # ===============================================================
-
 SAMPLE_STATUSES: Set[str] = {
     "REGISTERED",
     "IN_PROCESS",
@@ -82,7 +114,6 @@ SAMPLE_TRANSITION_ROLES: Dict[str, Dict[str, Set[str]]] = {
 # ===============================================================
 # EXPERIMENT WORKFLOW
 # ===============================================================
-
 EXPERIMENT_STATUSES: Set[str] = {
     "PLANNED",
     "RUNNING",
@@ -99,9 +130,6 @@ EXPERIMENT_TRANSITIONS: Dict[str, Set[str]] = {
     "CANCELLED": set(),
 }
 
-# IMPORTANT:
-# Your tests use role "Technician" and expect RUNNING to be allowed.
-# That means LAB_TECH must be allowed for PLANNED -> RUNNING.
 EXPERIMENT_TRANSITION_ROLES: Dict[str, Dict[str, Set[str]]] = {
     "PLANNED": {
         "RUNNING": {"SCIENTIST", "LAB_TECH", "ADMIN"},
@@ -122,20 +150,21 @@ EXPERIMENT_TRANSITION_ROLES: Dict[str, Dict[str, Set[str]]] = {
 # ===============================================================
 # VALIDATION
 # ===============================================================
+def _universe_and_transitions(kind: str):
+    kind = (kind or "").strip().lower()
+    if kind == "sample":
+        return SAMPLE_STATUSES, SAMPLE_TRANSITIONS
+    if kind == "experiment":
+        return EXPERIMENT_STATUSES, EXPERIMENT_TRANSITIONS
+    raise ValueError("Unknown workflow kind")
+
 
 def validate_transition(kind: str, old: str, new: str) -> None:
     kind = (kind or "").strip().lower()
     old = (old or "").strip().upper()
     new = (new or "").strip().upper()
 
-    if kind == "sample":
-        transitions = SAMPLE_TRANSITIONS
-        universe = SAMPLE_STATUSES
-    elif kind == "experiment":
-        transitions = EXPERIMENT_TRANSITIONS
-        universe = EXPERIMENT_STATUSES
-    else:
-        raise ValueError("Unknown workflow kind")
+    universe, transitions = _universe_and_transitions(kind)
 
     if old not in universe:
         raise ValueError(f"Unknown {kind} status: {old}")
@@ -150,10 +179,34 @@ def validate_transition(kind: str, old: str, new: str) -> None:
         raise ValueError(f"Invalid {kind} status transition: {old} -> {new}")
 
 
+def validate_transition_with_role(kind: str, old: str, new: str, role: str) -> None:
+    """
+    Canonical enforcement:
+    - Transition must be valid
+    - Role must be permitted for (old -> new)
+    """
+    validate_transition(kind, old, new)
+
+    kind = (kind or "").strip().lower()
+    old = (old or "").strip().upper()
+    new = (new or "").strip().upper()
+
+    if old == new:
+        return
+
+    role_norm = normalize_role(role)
+
+    required = required_roles(kind, old, new)
+    if required and role_norm not in required:
+        req = ", ".join(sorted(required))
+        raise ValueError(
+            f"Role not permitted for {kind} transition: {old} -> {new}. Required: {req}"
+        )
+
+
 # ===============================================================
 # INTROSPECTION HELPERS
 # ===============================================================
-
 def allowed_next_states(kind: str, current: str) -> List[str]:
     kind = (kind or "").strip().lower()
     current = (current or "").strip().upper()
@@ -221,6 +274,7 @@ def allowed_transitions(kind: str, current: str, role: str) -> List[str]:
 
 __all__ = [
     "validate_transition",
+    "validate_transition_with_role",
     "allowed_next_states",
     "required_roles",
     "allowed_transitions",

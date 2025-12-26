@@ -8,7 +8,7 @@ from django.db.models import Q, QuerySet
 from django.shortcuts import get_object_or_404, render
 
 from drf_spectacular.utils import extend_schema
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError, NotAuthenticated
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -25,6 +25,7 @@ from .models import (
     Sample,
     StaffMember,
     UserRole,
+    WorkflowEvent,
 )
 from .serializers import (
     AuditLogSerializer,
@@ -37,7 +38,10 @@ from .serializers import (
     StaffMemberSerializer,
     UserRoleSerializer,
 )
-from .workflows import validate_transition
+from .workflows import (
+    validate_transition_with_role,
+    normalize_role,
+)
 
 
 # ===============================================================
@@ -51,13 +55,16 @@ def _model_has_field(model, field_name: str) -> bool:
         return False
 
 
-def _parse_int(value) -> Optional[int]:
+def _parse_pk(value) -> Optional[str]:
+    """
+    Parse a primary key passed in query params or headers.
+
+    Supports integer PKs and UUID/string PKs.
+    """
     if value is None:
         return None
-    try:
-        return int(str(value).strip())
-    except Exception:
-        return None
+    v = str(value).strip()
+    return v or None
 
 
 def _apply_default_ordering(qs: QuerySet) -> QuerySet:
@@ -81,20 +88,34 @@ def _require_auth(request):
 
 
 # ===============================================================
-# Laboratory resolution
+# Laboratory resolution + Role resolution
 # ===============================================================
 def resolve_current_laboratory(request) -> Optional[Laboratory]:
+    """
+    Resolve current laboratory from ?lab=<pk> or X-Laboratory header, and verify
+    that the user is permitted to operate in that lab.
+
+    Permission signals supported (in order):
+      1) UserRole(user, laboratory) exists (primary / canonical)
+      2) StaffMember(user, laboratory) exists (common in LIMS designs)
+      3) User is in any Django Group (role encoded via groups in some setups)
+
+    If no lab is provided, and the user has exactly one lab via UserRole,
+    return it. Otherwise None.
+    """
     user = getattr(request, "user", None)
     if not user or not user.is_authenticated:
         return None
 
-    lab_id = _parse_int(request.query_params.get("lab"))
+    lab_id = _parse_pk(request.query_params.get("lab"))
     if lab_id is None:
-        lab_id = _parse_int(request.headers.get("X-Laboratory"))
+        lab_id = _parse_pk(request.headers.get("X-Laboratory"))
 
     if lab_id:
         try:
-            lab = Laboratory.objects.select_related("institute").get(id=lab_id, is_active=True)
+            lab = Laboratory.objects.select_related("institute").get(
+                id=lab_id, is_active=True
+            )
         except Laboratory.DoesNotExist:
             return None
 
@@ -104,9 +125,22 @@ def resolve_current_laboratory(request) -> Optional[Laboratory]:
         if UserRole.objects.filter(user=user, laboratory=lab).exists():
             return lab
 
+        # Fallback: StaffMember association
+        try:
+            if StaffMember.objects.filter(user=user, laboratory=lab).exists():
+                return lab
+        except Exception:
+            pass
+
+        # Fallback: group-based access (role derived later)
+        try:
+            if user.groups.exists():
+                return lab
+        except Exception:
+            pass
+
         return None
 
-    # Auto-select only if exactly one lab is available
     labs = list(
         Laboratory.objects.filter(is_active=True, user_roles__user=user).distinct()[:2]
     )
@@ -120,6 +154,49 @@ def require_laboratory(request) -> Laboratory:
             "Active laboratory not set or not permitted. Provide ?lab=<id> or X-Laboratory header."
         )
     return lab
+
+
+def _get_user_role(user, lab: Laboratory) -> str:
+    """
+    Return a normalized role string for the user in the given lab.
+
+    Role sources (in order):
+      1) UserRole(user, laboratory).role (primary)
+      2) StaffMember(user, laboratory).role (if such a field exists)
+      3) First Django group name (deterministic by name order)
+
+    If none exist, deny.
+    """
+    if user.is_superuser:
+        return "ADMIN"
+
+    # 1) Primary: UserRole
+    try:
+        role = UserRole.objects.get(user=user, laboratory=lab)
+        return normalize_role(role.role)
+    except UserRole.DoesNotExist:
+        pass
+
+    # 2) StaffMember role field (optional)
+    try:
+        sm = StaffMember.objects.get(user=user, laboratory=lab)
+        if getattr(sm, "role", None):
+            return normalize_role(getattr(sm, "role"))
+    except Exception:
+        pass
+
+    # 3) Group name
+    try:
+        if user.groups.exists():
+            gname = (
+                user.groups.order_by("name").values_list("name", flat=True).first()
+            )
+            if gname:
+                return normalize_role(gname)
+    except Exception:
+        pass
+
+    raise PermissionDenied("User has no role in this laboratory.")
 
 
 # ===============================================================
@@ -177,7 +254,9 @@ class InstituteViewSet(viewsets.ModelViewSet):
 # Laboratories
 # ===============================================================
 class LaboratoryViewSet(viewsets.ModelViewSet):
-    queryset = Laboratory.objects.select_related("institute").all().order_by("institute__code", "code", "id")
+    queryset = Laboratory.objects.select_related("institute").all().order_by(
+        "institute__code", "code", "id"
+    )
     serializer_class = LaboratorySerializer
     permission_classes = [IsAuthenticated]
 
@@ -199,7 +278,15 @@ class StaffMemberViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return qs.order_by("full_name", "id")
 
-        user_labs = Laboratory.objects.filter(is_active=True, user_roles__user=user).distinct()
+        user_labs = Laboratory.objects.filter(
+            is_active=True, user_roles__user=user
+        ).distinct()
+        if not user_labs.exists():
+            # Fallback: StaffMember based membership
+            user_labs = Laboratory.objects.filter(
+                is_active=True, staffmember__user=user
+            ).distinct()
+
         if not user_labs.exists():
             return qs.none()
 
@@ -210,15 +297,18 @@ class StaffMemberViewSet(viewsets.ModelViewSet):
             | Q(laboratory__isnull=True, institute_id__in=institutes)
         ).order_by("full_name", "id")
 
-    # IMPORTANT: Must block before serializer validation so tests get 403 not 400
     def update(self, request, *args, **kwargs):
         if "institute" in (request.data or {}) or "laboratory" in (request.data or {}):
-            raise PermissionDenied("Institute or laboratory cannot be changed once created.")
+            raise PermissionDenied(
+                "Institute or laboratory cannot be changed once created."
+            )
         return super().update(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
         if "institute" in (request.data or {}) or "laboratory" in (request.data or {}):
-            raise PermissionDenied("Institute or laboratory cannot be changed once created.")
+            raise PermissionDenied(
+                "Institute or laboratory cannot be changed once created."
+            )
         return super().partial_update(request, *args, **kwargs)
 
 
@@ -235,17 +325,22 @@ class ProjectViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSe
 
     def perform_create(self, serializer):
         lab = require_laboratory(self.request)
-        _deny_if_payload_has(self.request, ["laboratory", "created_by"], "This field is server-controlled.")
+        _deny_if_payload_has(
+            self.request,
+            ["laboratory", "created_by"],
+            "This field is server-controlled.",
+        )
         serializer.save(created_by=self.request.user, laboratory=lab)
 
     def perform_update(self, serializer):
-        # Even if read-only in serializer, enforce a hard 400 if client tries to send it
-        _deny_if_payload_has(self.request, ["laboratory", "created_by"], "This field cannot be modified.")
+        _deny_if_payload_has(
+            self.request, ["laboratory", "created_by"], "This field cannot be modified."
+        )
         serializer.save()
 
 
 # ===============================================================
-# Samples
+# Samples (canonical lifecycle enforced)
 # ===============================================================
 class SampleViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSet):
     queryset = Sample.objects.select_related("project").all()
@@ -259,20 +354,37 @@ class SampleViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSet
         incoming = self.request.data or {}
 
         if "status" in incoming:
-            current = (serializer.instance.status or "").strip().upper()
-            target = str(incoming["status"]).strip().upper()
+            lab = require_laboratory(self.request)
+            user = _require_auth(self.request)
+            role = _get_user_role(user, lab)
+
+            old = (serializer.instance.status or "").strip().upper()
+            new = str(incoming["status"]).strip().upper()
+
             try:
-                validate_transition("sample", current, target)
+                validate_transition_with_role("sample", old, new, role)
             except ValueError as e:
-                # Tests require {"status": ...}
                 raise ValidationError({"status": str(e)})
 
-        _deny_if_payload_has(self.request, ["laboratory", "project"], "This field cannot be modified.")
+            WorkflowEvent.objects.create(
+                kind="sample",
+                object_id=serializer.instance.id,
+                from_status=old,
+                to_status=new,
+                performed_by=user,
+                role=role,
+                comment=incoming.get("comment", ""),
+                laboratory=lab,
+            )
+
+        _deny_if_payload_has(
+            self.request, ["laboratory", "project"], "This field cannot be modified."
+        )
         serializer.save()
 
 
 # ===============================================================
-# Experiments
+# Experiments (canonical lifecycle enforced)
 # ===============================================================
 class ExperimentViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSet):
     queryset = Experiment.objects.select_related("project").all()
@@ -286,14 +398,32 @@ class ExperimentViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelVie
         incoming = self.request.data or {}
 
         if "status" in incoming:
-            current = (serializer.instance.status or "").strip().upper()
-            target = str(incoming["status"]).strip().upper()
+            lab = require_laboratory(self.request)
+            user = _require_auth(self.request)
+            role = _get_user_role(user, lab)
+
+            old = (serializer.instance.status or "").strip().upper()
+            new = str(incoming["status"]).strip().upper()
+
             try:
-                validate_transition("experiment", current, target)
+                validate_transition_with_role("experiment", old, new, role)
             except ValueError as e:
                 raise ValidationError({"status": str(e)})
 
-        _deny_if_payload_has(self.request, ["laboratory", "project"], "This field cannot be modified.")
+            WorkflowEvent.objects.create(
+                kind="experiment",
+                object_id=serializer.instance.id,
+                from_status=old,
+                to_status=new,
+                performed_by=user,
+                role=role,
+                comment=incoming.get("comment", ""),
+                laboratory=lab,
+            )
+
+        _deny_if_payload_has(
+            self.request, ["laboratory", "project"], "This field cannot be modified."
+        )
         serializer.save()
 
 
@@ -309,7 +439,9 @@ class InventoryItemViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.Model
         return _apply_default_ordering(self.get_scoped_queryset(super().get_queryset()))
 
     def perform_update(self, serializer):
-        _deny_if_payload_has(self.request, ["laboratory"], "Laboratory cannot be changed once created.")
+        _deny_if_payload_has(
+            self.request, ["laboratory"], "Laboratory cannot be changed once created."
+        )
         serializer.save()
 
 
@@ -325,7 +457,9 @@ class UserRoleViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewS
         return _apply_default_ordering(self.get_scoped_queryset(super().get_queryset()))
 
     def perform_update(self, serializer):
-        _deny_if_payload_has(self.request, ["laboratory"], "Laboratory cannot be changed once created.")
+        _deny_if_payload_has(
+            self.request, ["laboratory"], "Laboratory cannot be changed once created."
+        )
         serializer.save()
 
 
@@ -342,7 +476,7 @@ class AuditLogViewSet(LabScopedQuerysetMixin, viewsets.ReadOnlyModelViewSet):
 
 
 # ===============================================================
-# HTML DETAIL VIEWS (kept for completeness)
+# HTML DETAIL VIEWS
 # ===============================================================
 def sample_detail(request, pk: int):
     sample = get_object_or_404(Sample, pk=pk)
@@ -351,4 +485,6 @@ def sample_detail(request, pk: int):
 
 def experiment_detail(request, pk: int):
     experiment = get_object_or_404(Experiment, pk=pk)
-    return render(request, "lims_core/experiments/detail.html", {"experiment": experiment})
+    return render(
+        request, "lims_core/experiments/detail.html", {"experiment": experiment}
+    )
