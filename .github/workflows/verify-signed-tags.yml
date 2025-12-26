@@ -1,0 +1,27 @@
+name: Verify Signed Release Tags
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify GPG signature on tag
+        run: |
+          TAG="${GITHUB_REF##*/}"
+          echo "Verifying signature for tag $TAG"
+
+          if ! git tag -v "$TAG"; then
+            echo "❌ Tag $TAG is not signed or signature is invalid."
+            exit 1
+          fi
+
+          echo "✅ Tag $TAG is properly signed."

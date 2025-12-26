@@ -43,3 +43,4 @@ db.sqlite3-journal
 # ---------------------------------------------------------------------------
 celerybeat-schedule
 celeryb
+lims_core/workflows_py_unused.bak

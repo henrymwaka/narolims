@@ -1,75 +1,113 @@
 ###############################################################################
 # CODEOWNERS — NARO-LIMS
 #
-# Purpose:
-#  - Enforce review responsibility
-#  - Protect critical subsystems
-#  - Support audit, compliance, and traceability
+# ISO/IEC 17025 Alignment Statement
+# --------------------------------
+# This file defines technical responsibility, authorization, and change-control
+# ownership for software components supporting laboratory operations.
 #
-# Rules:
-#  - The last matching rule takes precedence
-#  - Owners must approve PRs touching protected paths
+# Alignment to ISO/IEC 17025:2017
+# - Clause 6.2  : Personnel competence and authorization
+# - Clause 6.3  : Infrastructure and controlled environments
+# - Clause 6.4  : Equipment, software, and systems control
+# - Clause 7.11 : Control of data, information management, and integrity
+# - Clause 8.3  : Control of management system documents
+# - Clause 8.5  : Actions to address risks and opportunities
+#
+# Governance Principles
+# ---------------------
+# - All changes must be attributable to a responsible individual
+# - High-risk components require explicit technical authorization
+# - The last matching rule takes precedence
+# - Code Owners must approve pull requests affecting owned components
 ###############################################################################
 
 # ---------------------------------------------------------------------------
-# Default ownership (entire repository)
+# Repository-wide responsibility (overall system authority)
+# ISO 17025: 6.2, 8.3
 # ---------------------------------------------------------------------------
-* @henrymwaka
+/* @henrymwaka
+
 
 # ---------------------------------------------------------------------------
-# Core application logic (highest risk)
+# Core Laboratory Information System Logic
+# (Data integrity, workflow enforcement, authorization logic)
+# ISO 17025: 6.4, 7.11
 # ---------------------------------------------------------------------------
-lims_core/ @henrymwaka
-naro_lims/ @henrymwaka
+/lims_core/ @henrymwaka
+/naro_lims/ @henrymwaka
+
 
 # ---------------------------------------------------------------------------
-# Workflow engine, permissions, guardrails
+# Workflow engines, permissions, and enforcement mechanisms
+# (Process conformity, deviation prevention)
+# ISO 17025: 7.2, 7.11, 8.5
 # ---------------------------------------------------------------------------
-lims_core/workflows/ @henrymwaka
-lims_core/permissions.py @henrymwaka
-lims_core/middleware.py @henrymwaka
-GUARDRAILS.md @henrymwaka
+/lims_core/workflows/ @henrymwaka
+/lims_core/permissions.py @henrymwaka
+/lims_core/middleware.py @henrymwaka
+/GUARDRAILS.md @henrymwaka
+
 
 # ---------------------------------------------------------------------------
-# Security-sensitive documentation
+# Security, deployment, and operational control documentation
+# (Risk management, access control, environment integrity)
+# ISO 17025: 6.3, 6.4, 8.5
 # ---------------------------------------------------------------------------
-SECURITY.md @henrymwaka
-DEPLOYMENT.md @henrymwaka
-OPERATIONS.md @henrymwaka
+/SECURITY.md @henrymwaka
+/DEPLOYMENT.md @henrymwaka
+/OPERATIONS.md @henrymwaka
+
 
 # ---------------------------------------------------------------------------
-# CI/CD and automation
+# CI/CD, automation, and change-control infrastructure
+# (Controlled change, prevention of unauthorized modification)
+# ISO 17025: 7.11, 8.3
 # ---------------------------------------------------------------------------
-.github/ @henrymwaka
-.github/workflows/ @henrymwaka
-Makefile @henrymwaka
-.git/hooks/ @henrymwaka
+/.github/ @henrymwaka
+/.github/workflows/ @henrymwaka
+/Makefile @henrymwaka
+
 
 # ---------------------------------------------------------------------------
-# Database and migrations
+# Database schema and migrations
+# (Traceability of structural data changes)
+# ISO 17025: 7.11
 # ---------------------------------------------------------------------------
-lims_core/migrations/ @henrymwaka
+/lims_core/migrations/ @henrymwaka
+
 
 # ---------------------------------------------------------------------------
-# Tests (guardrail enforcement)
+# Tests and guardrail enforcement
+# (Verification, validation, and conformity evidence)
+# ISO 17025: 7.2, 7.7
 # ---------------------------------------------------------------------------
-lims_core/tests/ @henrymwaka
-pytest.ini @henrymwaka
+/lims_core/tests/ @henrymwaka
+/pytest.ini @henrymwaka
+
 
 # ---------------------------------------------------------------------------
-# Release management
+# Release and version management
+# (Documented change history and traceability)
+# ISO 17025: 8.3
 # ---------------------------------------------------------------------------
-CHANGELOG.md @henrymwaka
-RELEASE_NOTES/ @henrymwaka
+/CHANGELOG.md @henrymwaka
+/RELEASE_NOTES/ @henrymwaka
+
 
 # ---------------------------------------------------------------------------
-# Documentation
+# Architectural and technical documentation
+# (System understanding and reproducibility)
+# ISO 17025: 6.2, 8.3
 # ---------------------------------------------------------------------------
-README.md @henrymwaka
-ARCHITECTURE.md @henrymwaka
-docs/ @henrymwaka
+/README.md @henrymwaka
+/ARCHITECTURE.md @henrymwaka
+/docs/ @henrymwaka
+
 
 # ---------------------------------------------------------------------------
 # Scripts and bootstrap tooling
+# (Controlled execution mechanisms)
+# ISO 17025: 6.4, 7.11
 # ---------------------------------------------------------------------------
-*.sh @henrymwaka
+/*.sh @henrymwaka

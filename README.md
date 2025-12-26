@@ -1,3 +1,11 @@
+## Authoritative System Document
+
+This repository is governed by the system charter:
+
+📌 **NARO_LIMS_SYSTEM_CHARTER.md**
+
+All design and implementation decisions must align with the charter.
+
 # NARO-LIMS (narolims)
 
 NARO-LIMS is a laboratory information management system designed for structured, auditable, and role-aware laboratory operations in agricultural and bioscience research environments.
