@@ -46,6 +46,10 @@ def _has_db_role_for_instance(*, actor, actor_role: str, obj) -> bool:
 
     We only use execute_transition when this check passes, otherwise we keep the
     existing bulk engine behavior (which trusts actor_role and required_roles()).
+
+    Important:
+    - Do not require the raw stored role string to match exactly.
+      Normalize DB roles and compare to normalized actor_role.
     """
     if getattr(actor, "is_superuser", False):
         return True
@@ -56,13 +60,13 @@ def _has_db_role_for_instance(*, actor, actor_role: str, obj) -> bool:
 
     role_norm = normalize_role(actor_role)
 
-    return UserRole.objects.filter(
+    raw_roles = UserRole.objects.filter(
         user=actor,
         laboratory_id=lab_id,
-    ).values_list("role", flat=True).exists() and UserRole.objects.filter(
-        user=actor,
-        laboratory_id=lab_id,
-    ).values_list("role", flat=True).filter().exists()
+    ).values_list("role", flat=True)
+
+    normalized_roles = {normalize_role(r) for r in raw_roles if r}
+    return role_norm in normalized_roles
 
 
 def _event_supports_laboratory() -> bool:
