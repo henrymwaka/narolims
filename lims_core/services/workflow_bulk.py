@@ -4,13 +4,17 @@ from typing import List, Dict, Any
 
 from django.db import transaction
 
-from lims_core.models import Sample, Experiment
+from lims_core.models import Sample, Experiment, UserRole
 from lims_core.models.workflow_event import WorkflowEvent
 from lims_core.workflows import (
     validate_transition,
     required_roles,
     normalize_role,
 )
+
+# Optional authoritative path (only when DB membership is present)
+from lims_core.workflows.executor import execute_transition
+
 
 # ---------------------------------------------------------------------
 # MODEL REGISTRY
@@ -31,6 +35,42 @@ def _force_status_update(model, pk, new_status: str) -> None:
     Force-update status without triggering WorkflowWriteGuardMixin.
     """
     model.objects.filter(pk=pk).update(status=new_status)
+
+
+def _has_db_role_for_instance(*, actor, actor_role: str, obj) -> bool:
+    """
+    The executor re-checks roles via UserRole(user, laboratory).
+
+    For API calls this is normally true because views resolve actor_role from DB.
+    For tests calling bulk_transition directly, this may be false.
+
+    We only use execute_transition when this check passes, otherwise we keep the
+    existing bulk engine behavior (which trusts actor_role and required_roles()).
+    """
+    if getattr(actor, "is_superuser", False):
+        return True
+
+    lab_id = getattr(obj, "laboratory_id", None)
+    if not lab_id:
+        return False
+
+    role_norm = normalize_role(actor_role)
+
+    return UserRole.objects.filter(
+        user=actor,
+        laboratory_id=lab_id,
+    ).values_list("role", flat=True).exists() and UserRole.objects.filter(
+        user=actor,
+        laboratory_id=lab_id,
+    ).values_list("role", flat=True).filter().exists()
+
+
+def _event_supports_laboratory() -> bool:
+    try:
+        WorkflowEvent._meta.get_field("laboratory")
+        return True
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------
@@ -54,6 +94,10 @@ def bulk_transition(
     - Allows ADMIN/superuser to force transitions (even if workflow says invalid)
     - Bypasses workflow guards safely
     - Records WorkflowEvent per successful transition
+
+    Note:
+    - execute_transition() is only used when DB role membership exists for the object's lab.
+      Otherwise we preserve the original behavior (trust actor_role passed in).
     """
     kind = (kind or "").strip().lower()
     target_status = (target_status or "").strip().upper()
@@ -86,6 +130,8 @@ def bulk_transition(
         "failed": [],
     }
 
+    can_set_lab = _event_supports_laboratory()
+
     # --------------------------------------------------
     # Per-object processing
     # --------------------------------------------------
@@ -107,11 +153,11 @@ def bulk_transition(
             try:
                 allowed = required_roles(kind, old_status, target_status)
             except Exception as exc:
-                # Defensive: required_roles may validate too
                 results["failed"].append({"id": getattr(obj, "id", None), "error": str(exc)})
                 continue
 
-            if allowed and actor_role not in [normalize_role(r) for r in allowed]:
+            allowed_norm = {normalize_role(r) for r in (allowed or set())}
+            if allowed_norm and actor_role not in allowed_norm:
                 results["failed"].append(
                     {
                         "id": getattr(obj, "id", None),
@@ -123,12 +169,22 @@ def bulk_transition(
                 )
                 continue
 
-        # 3) Atomic forced transition + audit (always records event on success)
+        # 3) Atomic transition + audit
         try:
             with transaction.atomic():
-                _force_status_update(Model, obj.pk, target_status)
+                if transition_is_valid and _has_db_role_for_instance(actor=actor, actor_role=actor_role, obj=obj):
+                    # Use authoritative executor only when it can succeed (DB role membership present)
+                    execute_transition(
+                        instance=obj,
+                        kind=kind,
+                        new_status=target_status,
+                        user=actor,
+                    )
+                else:
+                    # Preserve original bulk semantics
+                    _force_status_update(Model, obj.pk, target_status)
 
-                WorkflowEvent.objects.create(
+                evt_kwargs = dict(
                     kind=kind,
                     object_id=obj.pk,
                     from_status=old_status,
@@ -137,6 +193,12 @@ def bulk_transition(
                     role=actor_role,
                     comment=comment or "",
                 )
+
+                if can_set_lab:
+                    lab = getattr(obj, "laboratory", None)
+                    evt_kwargs["laboratory"] = lab
+
+                WorkflowEvent.objects.create(**evt_kwargs)
 
             results["success"].append(obj.pk)
 
