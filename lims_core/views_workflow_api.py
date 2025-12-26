@@ -95,8 +95,7 @@ class WorkflowAllowedView(APIView):
     - allowed next states (role-aware)
     - user roles considered
     """
-    # IMPORTANT:
-    # We keep AllowAny here and enforce auth explicitly to avoid 302 redirects
+    # Keep AllowAny and enforce auth explicitly to avoid 302 redirects
     # in environments where unauthenticated requests get redirected to login.
     permission_classes = [AllowAny]
 
@@ -129,9 +128,11 @@ class WorkflowTransitionView(APIView):
     """
     POST /lims/workflows/<kind>/<pk>/transition/
 
-    Body:
+    Canonical body:
+        { "to": "QC_PASSED" }
+
+    Backwards-compatible aliases accepted:
         { "to_status": "QC_PASSED" }
-        or
         { "status": "QC_PASSED" }
 
     This endpoint is the ONLY API-level entry point
@@ -149,14 +150,13 @@ class WorkflowTransitionView(APIView):
         instance = get_object_or_404(model, pk=pk)
 
         payload = request.data or {}
-        to_status = payload.get("to_status") or payload.get("status")
+
+        # Canonical key first, then legacy aliases
+        to_status = payload.get("to") or payload.get("to_status") or payload.get("status")
 
         if not to_status:
-            raise ValidationError({"to_status": "This field is required."})
+            raise ValidationError({"to": "This field is required."})
 
-        # -----------------------------------------------------
-        # Authoritative transition execution
-        # -----------------------------------------------------
         execute_transition(
             instance=instance,
             kind=kind,
