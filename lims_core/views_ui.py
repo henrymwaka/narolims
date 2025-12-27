@@ -3,40 +3,212 @@
 from __future__ import annotations
 
 import traceback
+from pathlib import Path
 
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.db.utils import OperationalError, ProgrammingError
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 
 from .models import Sample, Experiment, UserRole
 from .workflows import workflow_definition
 
 
+# -----------------------------
+# Public site content (no login)
+# -----------------------------
+
+FEATURES = [
+    {
+        "slug": "samples",
+        "name": "Samples",
+        "tag": "Active",
+        "summary": "Register, track, and audit sample lifecycle across laboratory workflows.",
+        "bullets": [
+            "Sample registration and identifiers",
+            "Status transitions with audit trail",
+            "Lab-scoped queues and filtering",
+        ],
+        "cta_label": "Open Samples",
+        "cta_href": "/lims/ui/samples/",
+    },
+    {
+        "slug": "workflows",
+        "name": "Workflow Engine",
+        "tag": "Active",
+        "summary": "Role-aware transitions, permissions validation, and traceable timelines.",
+        "bullets": [
+            "Allowed transitions per role",
+            "Bulk workflow updates",
+            "Timeline and history endpoints",
+        ],
+        "cta_label": "Workflow Demo",
+        "cta_href": "/lims/ui/workflow-demo/",
+    },
+    {
+        "slug": "inventory",
+        "name": "Inventory",
+        "tag": "Admin-first",
+        "summary": "Inventory items, stock traceability, and consumption tracking (UI expansion next).",
+        "bullets": [
+            "Item master data in admin",
+            "Stock and usage readiness",
+            "Foundation for procurement traceability",
+        ],
+        "cta_label": "Open Admin",
+        "cta_href": "/admin/",
+    },
+    {
+        "slug": "audit",
+        "name": "Audit and Compliance",
+        "tag": "Core",
+        "summary": "Audit-ready operations with logs, role mapping, and traceable actions.",
+        "bullets": [
+            "Audit logs API",
+            "Role-to-lab scoping",
+            "Compliance-friendly workflow events",
+        ],
+        "cta_label": "Identity Check",
+        "cta_href": "/lims/whoami/",
+    },
+    {
+        "slug": "integrations",
+        "name": "Integrations and API",
+        "tag": "Active",
+        "summary": "DRF endpoints, schema, and documented interfaces for integration.",
+        "bullets": [
+            "Schema and API docs",
+            "Stable endpoints for automation",
+            "Health and status interfaces",
+        ],
+        "cta_label": "API Docs",
+        "cta_href": "/api/schema/swagger-ui/",
+    },
+    {
+        "slug": "reports",
+        "name": "Reports",
+        "tag": "Next",
+        "summary": "Operational reporting, exports, turnaround time, queues, and exceptions.",
+        "bullets": [
+            "Turnaround time and queue summaries",
+            "Compliance export formats",
+            "Exception reporting",
+        ],
+        "cta_label": "System Status",
+        "cta_href": "/lims/health/",
+    },
+]
+
+
+def _read_repo_file(relpath: str, max_chars: int = 200_000) -> str:
+    """
+    Best-effort file read for public pages (updates, docs).
+    Must never raise.
+    """
+    try:
+        base = Path(__file__).resolve().parent.parent  # project root (narolims/)
+        p = (base / relpath).resolve()
+        if not str(p).startswith(str(base)):
+            return ""
+        if not p.exists():
+            return ""
+        txt = p.read_text(encoding="utf-8", errors="replace")
+        return txt[:max_chars]
+    except Exception:
+        return ""
+
+
 def landing(request):
     """
-    Public landing page for the platform namespace (/lims/).
-
-    Rules:
-      - Do not touch the database (must be safe even during partial migrations).
-      - If authenticated, send to the workspace dashboard (/lims/ui/).
+    Public landing page for the LIMS.
+    Safe: does not touch DB.
     """
-    if getattr(request, "user", None) and request.user.is_authenticated:
-        return redirect("/lims/ui/")
+    return render(
+        request,
+        "lims_core/landing.html",
+        {
+            "features": FEATURES[:4],
+        },
+    )
 
-    return render(request, "lims_core/landing.html")
+
+def features(request):
+    """
+    Public feature overview.
+    Safe: does not touch DB.
+    """
+    return render(
+        request,
+        "lims_core/features.html",
+        {
+            "features": FEATURES,
+        },
+    )
+
+
+def feature_detail(request, slug: str):
+    """
+    Public feature detail page.
+    Safe: does not touch DB.
+    """
+    item = next((x for x in FEATURES if x["slug"] == slug), None)
+    if not item:
+        raise Http404("Feature not found")
+    return render(
+        request,
+        "lims_core/feature_detail.html",
+        {
+            "feature": item,
+        },
+    )
+
+
+def updates(request):
+    """
+    Public updates page.
+    Reads docs/CHANGELOG_NARO-LIMS_UI.md (no DB).
+    """
+    changelog = _read_repo_file("docs/CHANGELOG_NARO-LIMS_UI.md")
+    return render(
+        request,
+        "lims_core/updates.html",
+        {
+            "changelog_text": changelog,
+        },
+    )
+
+
+def docs_hub(request):
+    """
+    Public docs hub (links out to API docs, SOPs, governance).
+    """
+    return render(request, "lims_core/docs_hub.html")
+
+
+# -----------------------------
+# Authenticated UI workspace
+# -----------------------------
+
+def ui_login_redirect(request):
+    """
+    If a user hits a UI route without being authenticated, send them to the
+    session-login page (DRF browsable login), then back to /lims/ui/.
+    """
+    login_url = "/api/auth/login/"
+    next_url = request.GET.get("next") or "/lims/ui/"
+    return redirect(f"{login_url}?next={next_url}")
 
 
 def ui_logout(request):
     """
     UI logout endpoint (GET-safe).
-    Avoids DRF logout 405 by using Django's auth_logout directly.
+    Uses Django session logout and redirects to a sensible landing page.
 
-    Redirect order:
+    Priority for redirect:
       1) ?next=/some/path
-      2) /lims/  (public landing)
+      2) /lims/ (public landing)
     """
     next_url = request.GET.get("next") or "/lims/"
     auth_logout(request)
@@ -46,15 +218,14 @@ def ui_logout(request):
 @login_required
 def home(request):
     """
-    Authenticated workspace home (/lims/ui/).
-    Intentionally light on DB access. Dynamic stats are loaded via /lims/ui/stats/.
+    Workspace home (UI).
+    Intentionally does not touch the database to avoid 500s on first load.
+    Dynamic stats are loaded via /lims/ui/stats/ after render.
     """
     return render(
         request,
         "lims_core/home.html",
-        {
-            "username": getattr(request.user, "username", ""),
-        },
+        {"username": getattr(request.user, "username", "")},
     )
 
 
@@ -181,10 +352,7 @@ def workflow_widget_demo(request):
     return render(
         request,
         "lims_core/workflow_widget.html",
-        {
-            "workflow_kind": "sample",
-            "workflow_object_id": 1,
-        },
+        {"workflow_kind": "sample", "workflow_object_id": 1},
     )
 
 
@@ -261,3 +429,4 @@ def sample_detail(request, pk: int):
 def experiment_detail(request, pk: int):
     experiment = get_object_or_404(Experiment, pk=pk)
     return render(request, "lims_core/experiments/detail.html", {"experiment": experiment})
+
