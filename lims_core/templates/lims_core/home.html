@@ -145,7 +145,7 @@
       {% if user.is_staff or user.is_superuser %}
         <a class="btnX secondary" href="/admin/">Admin</a>
       {% endif %}
-      {# Logout is handled in base.html as a POST button. Do not duplicate it here. #}
+      {# Logout lives in the top navigation in base.html. Do not duplicate it here. #}
     </div>
   </div>
 

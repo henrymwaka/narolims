@@ -1,129 +1,119 @@
-{% extends "lims_core/base.html" %}
-{% block title %}NARO LIMS | Laboratory Information Management{% endblock %}
-{% block page_title %}NARO LIMS{% endblock %}
-{% block page_meta %}National Agricultural Research Organisation{% endblock %}
+{% extends "lims_core/base_public.html" %}
+{% block title %}NARO LIMS{% endblock %}
 
 {% block content %}
 <style>
-  .landing-wrap{max-width:1120px;margin:0 auto;padding:6px;}
   .hero{
-    background:#fff;
-    border:1px solid #e5e7eb;
-    border-radius:16px;
-    padding:18px;
-    display:flex;
-    justify-content:space-between;
-    gap:16px;
-    align-items:flex-start;
-    flex-wrap:wrap;
+    padding: 26px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.05));
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
   }
-  .hero h2{margin:0;font-size:20px;}
-  .hero p{margin:8px 0 0 0;color:#6b7280;font-size:13px;max-width:70ch;}
-  .cta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px;}
-  .btnX{
-    display:inline-flex;align-items:center;justify-content:center;
-    padding:10px 12px;border-radius:12px;border:1px solid #111827;
-    font-weight:800;font-size:13px;text-decoration:none;white-space:nowrap;
-    background:#111827;color:#fff;
+  .hero h1{ margin:0; font-size: 34px; letter-spacing: .2px; }
+  .hero p{ margin:10px 0 0 0; color: rgba(232,238,252,.85); max-width: 880px; }
+  .hero .row{ margin-top: 16px; display:flex; gap:10px; flex-wrap: wrap; }
+  .btn2{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding: 12px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.08);
+    font-weight: 900;
+    white-space: nowrap;
   }
-  .btnX.secondary{background:#fff;color:#111827}
-  .btnX:hover{text-decoration:none;opacity:.95}
+  .btn2.primary{
+    background: rgba(99,102,241,.28);
+    border-color: rgba(99,102,241,.55);
+  }
 
   .grid{
-    margin-top:14px;
+    margin-top: 18px;
     display:grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
   }
-  .card{
-    background:#fff;
-    border:1px solid #e5e7eb;
-    border-radius:16px;
-    padding:16px;
-    box-shadow:0 8px 26px rgba(16,24,40,.05);
+  .card2{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    padding: 16px;
   }
-  .card h3{margin:0;font-size:15px;}
-  .card ul{margin:10px 0 0 18px;color:#374151;font-size:13px;}
-  .card li{margin:6px 0;}
-  .muted{color:#6b7280;font-size:13px;}
-
-  .band{
-    margin-top:14px;
-    background:linear-gradient(180deg,#ffffff,#fbfbfd);
-    border:1px solid #e5e7eb;
-    border-radius:16px;
-    padding:16px;
+  .card2 .top{ display:flex; justify-content: space-between; gap:10px; align-items:flex-start; }
+  .tag{
+    font-size: 12px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.16);
+    color: rgba(232,238,252,.9);
+    background: rgba(0,0,0,.10);
+    white-space: nowrap;
   }
-  .band h3{margin:0;font-size:15px;}
-  .band p{margin:8px 0 0 0;color:#6b7280;font-size:13px;max-width:85ch;}
+  .card2 h3{ margin: 0; font-size: 16px; }
+  .card2 p{ margin: 8px 0 0 0; color: rgba(232,238,252,.78); font-size: 13px; }
+  .card2 ul{ margin:10px 0 0 18px; color: rgba(232,238,252,.78); font-size: 13px; }
+  .card2 .actions{ margin-top: 12px; display:flex; gap:10px; flex-wrap: wrap; }
 
   @media (max-width: 980px){
-    .grid{grid-template-columns: 1fr;}
+    .grid{ grid-template-columns: 1fr; }
   }
 </style>
 
-<div class="landing-wrap">
+<section class="hero">
+  <h1>NARO LIMS</h1>
+  <p>
+    A laboratory information management system designed for traceable sample workflows, role-aware operations, and compliance-ready auditability across NARO laboratories.
+  </p>
 
-  <div class="hero">
-    <div>
-      <h2>Laboratory Information Management for NARO</h2>
-      <p>
-        NARO-LIMS is the operational platform for registering samples, tracking laboratory workflows, enforcing role-based approvals,
-        and producing audit-ready records for routine operations and institutional reporting.
-      </p>
+  <div class="row">
+    {% if user.is_authenticated %}
+      <a class="btn2 primary" href="/lims/ui/">Open Workspace</a>
+      <a class="btn2" href="/lims/ui/samples/">Open Samples</a>
+    {% else %}
+      <a class="btn2 primary" href="/api/auth/login/?next=/lims/ui/">Login to Workspace</a>
+      <a class="btn2" href="/lims/features/">Explore Features</a>
+    {% endif %}
+    <a class="btn2" href="/lims/updates/">What’s New</a>
+    <a class="btn2" href="/lims/docs/">Docs</a>
+    <a class="btn2" href="/lims/health/">System Status</a>
+  </div>
+</section>
 
-      <div class="cta">
-        <a class="btnX" href="/api/auth/login/?next=/lims/ui/">Enter workspace</a>
-        <a class="btnX secondary" href="/api/schema/swagger-ui/">API documentation</a>
-        <a class="btnX secondary" href="/lims/health/">System health</a>
+<section class="grid" style="margin-top:18px;">
+  {% for f in features %}
+    <div class="card2">
+      <div class="top">
+        <h3>{{ f.name }}</h3>
+        <span class="tag">{{ f.tag }}</span>
       </div>
-
-      <div class="muted" style="margin-top:10px;">
-        Tip: If you are already signed in, you will be redirected to the workspace automatically.
+      <p>{{ f.summary }}</p>
+      <ul>
+        {% for b in f.bullets %}
+          <li>{{ b }}</li>
+        {% endfor %}
+      </ul>
+      <div class="actions">
+        <a class="btn2 primary" href="/lims/features/{{ f.slug }}/">Learn more</a>
+        <a class="btn2" href="{{ f.cta_href }}">{{ f.cta_label }}</a>
       </div>
     </div>
+  {% endfor %}
+</section>
 
-    <div class="card" style="min-width:280px;max-width:420px;">
-      <h3>At a glance</h3>
-      <ul>
-        <li>Sample registration and traceability</li>
-        <li>Workflow states with permission controls</li>
-        <li>Bulk status transitions with audit logging</li>
-        <li>Lab-scoped access using user roles</li>
-        <li>API-first architecture for integrations</li>
-      </ul>
+<section style="margin-top:16px;">
+  <div class="card2">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start;">
+      <div>
+        <h3 style="margin:0;">Built for operational discipline</h3>
+        <p style="margin-top:8px;">
+          The system prioritizes controlled transitions, lab scoping, and audit trails. The UI is evolving toward a wider, product-grade layout aligned with the ResLab omics platform experience.
+        </p>
+      </div>
+      <div class="actions" style="margin-top:0;">
+        <a class="btn2" href="/lims/features/">All features</a>
+        <a class="btn2" href="/lims/updates/">Release notes</a>
+      </div>
     </div>
   </div>
-
-  <div class="grid">
-    <div class="card">
-      <h3>What this system is for</h3>
-      <ul>
-        <li>Maintain a single source of truth for laboratory sample identity and status.</li>
-        <li>Ensure consistent workflow transitions across staff and labs.</li>
-        <li>Support operational reporting and exception tracking.</li>
-        <li>Enable integrations with external systems through stable APIs.</li>
-      </ul>
-    </div>
-
-    <div class="card">
-      <h3>Governance and audit posture</h3>
-      <ul>
-        <li>Role assignment controls what actions are allowed.</li>
-        <li>Workflow transitions are validated and recorded.</li>
-        <li>Bulk actions remain traceable and reviewable.</li>
-        <li>System health endpoints support uptime verification.</li>
-      </ul>
-    </div>
-  </div>
-
-  <div class="band">
-    <h3>Next user-facing milestones</h3>
-    <p>
-      This landing page is the stable entry point for NARO-LIMS. The workspace will continue evolving toward a wider, operations-first layout
-      like your Omics portal, with module dashboards, queue views, and fast actions for bench and admin workflows.
-    </p>
-  </div>
-
-</div>
+</section>
 {% endblock %}

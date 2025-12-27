@@ -24,10 +24,14 @@ from .views import (
 )
 
 # -------------------------------------------------
-# UI / HTML Views
+# Public + UI / HTML Views
 # -------------------------------------------------
 from .views_ui import (
     landing,
+    features,
+    feature_detail,
+    updates,
+    docs_hub,
     home,
     ui_stats,
     ui_logout,
@@ -80,9 +84,7 @@ from .views_workflow_introspection import (
 # -------------------------------------------------
 # Workflow metrics
 # -------------------------------------------------
-from .views_workflow_metrics import (
-    WorkflowMetricsView,
-)
+from .views_workflow_metrics import WorkflowMetricsView
 
 # -------------------------------------------------
 # Identity
@@ -107,14 +109,25 @@ router.register(r"staff", StaffMemberViewSet, basename="staff")
 
 urlpatterns = [
     # ============================================================
-    # Public landing (replaces DRF api-root at /lims/)
+    # Public marketing-style pages (no login required)
+    # These are safe and must not touch the database on render
     # ============================================================
     path("", landing, name="landing"),
+    path("features/", features, name="features"),
+    path("features/<slug:slug>/", feature_detail, name="feature-detail"),
+    path("updates/", updates, name="updates"),
+    path("docs/", docs_hub, name="docs-hub"),
 
     # ============================================================
-    # Core CRUD API
+    # UI / HTML pages (authenticated workspace)
     # ============================================================
-    path("", include(router.urls)),
+    path("ui/", home, name="ui-home"),
+    path("ui/stats/", ui_stats, name="ui-stats"),
+    path("ui/logout/", ui_logout, name="ui-logout"),
+    path("ui/workflow-demo/", workflow_widget_demo, name="workflow-demo"),
+    path("ui/samples/", sample_list, name="sample-list-html"),
+    path("ui/samples/<int:pk>/", sample_detail, name="sample-detail-html"),
+    path("ui/experiments/<int:pk>/", experiment_detail, name="experiment-detail-html"),
 
     # ============================================================
     # System
@@ -172,13 +185,7 @@ urlpatterns = [
     path("workflows/<str:kind>/<int:pk>/metrics/", WorkflowMetricsView.as_view(), name="workflow-metrics"),
 
     # ============================================================
-    # UI / HTML pages (authenticated workspace)
+    # Core CRUD API (keep as-is, now that landing is defined first)
     # ============================================================
-    path("ui/", home, name="ui-home"),
-    path("ui/stats/", ui_stats, name="ui-stats"),
-    path("ui/logout/", ui_logout, name="ui-logout"),
-    path("ui/workflow-demo/", workflow_widget_demo, name="workflow-demo"),
-    path("ui/samples/", sample_list, name="sample-list-html"),
-    path("ui/samples/<int:pk>/", sample_detail, name="sample-detail-html"),
-    path("ui/experiments/<int:pk>/", experiment_detail, name="experiment-detail-html"),
+    path("", include(router.urls)),
 ]

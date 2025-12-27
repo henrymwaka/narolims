@@ -1,0 +1,53 @@
+{% extends "lims_core/base_public.html" %}
+{% block title %}Updates · NARO LIMS{% endblock %}
+
+{% block content %}
+<style>
+  .wrap{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    padding: 18px;
+  }
+  pre{
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 12px 0 0 0;
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(0,0,0,.18);
+    color: rgba(232,238,252,.9);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .row{ margin-top: 12px; display:flex; gap:10px; flex-wrap: wrap; }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding: 10px 12px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.08);
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .btn.primary{
+    background: rgba(99,102,241,.28);
+    border-color: rgba(99,102,241,.55);
+  }
+</style>
+
+<div class="wrap">
+  <h2 style="margin:0;">Updates and release notes</h2>
+  <p style="margin:10px 0 0 0; color: rgba(232,238,252,.82);">
+    This page is generated from <code>docs/CHANGELOG_NARO-LIMS_UI.md</code>.
+  </p>
+
+  <div class="row">
+    <a class="btn primary" href="/lims/">Landing</a>
+    <a class="btn" href="/lims/features/">Features</a>
+    <a class="btn" href="/lims/docs/">Docs</a>
+  </div>
+
+  <pre>{{ changelog_text }}</pre>
+</div>
+{% endblock %}
