@@ -2,19 +2,19 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from drf_spectacular.views import (
-    SpectacularAPIView,
-    SpectacularSwaggerView,
-    SpectacularRedocView,
-)
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from rest_framework.permissions import AllowAny
 from django.conf import settings
 from django.conf.urls.static import static
-from .views import HomeView
+
+from .views import LandingView, ApiHomeView
 
 urlpatterns = [
-    # Landing (JSON or minimal message)
-    path("", HomeView.as_view(), name="home"),
+    # Public landing page
+    path("", LandingView.as_view(), name="landing"),
+
+    # API landing (JSON)
+    path("api/", ApiHomeView.as_view(), name="api-home"),
 
     # Admin
     path("admin/", admin.site.urls),
@@ -41,7 +41,6 @@ urlpatterns = [
     path("lims/", include("lims_core.urls")),
 ]
 
-# Serve static and media files (important when DEBUG=False)
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

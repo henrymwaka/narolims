@@ -1,23 +1,310 @@
+{# lims_core/templates/lims_core/base.html #}
 {% load static %}
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>{% block title %}NARO LIMS{% endblock %}</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- Workflow UI styles -->
-    <link rel="stylesheet" href="{% static 'lims_core/css/workflows.css' %}">
+  <title>{% block title %}NARO LIMS{% endblock %}</title>
 
-    <!-- CSRF token for JS fetch calls -->
-    <meta name="csrf-token" content="{{ csrf_token }}">
+  <link rel="stylesheet" href="{% static 'lims_core/css/workflows.css' %}">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+
+  <style>
+    :root{
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --shadow: 0 8px 26px rgba(16,24,40,.08);
+      --radius: 14px;
+      --max: 1180px;
+      --btn: #111827;
+      --btnText: #ffffff;
+    }
+
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.45;
+    }
+
+    a{ color: inherit; text-decoration: none; }
+    a:hover{ text-decoration: underline; }
+
+    .shell{
+      min-height: 100%;
+      display:flex;
+      flex-direction: column;
+    }
+
+    .topbar{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .topbar-inner{
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 12px 16px;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      min-width: 220px;
+    }
+    .brand-badge{
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display:grid;
+      place-items:center;
+      background: #111827;
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: .5px;
+      user-select: none;
+      box-shadow: 0 10px 20px rgba(17,24,39,.15);
+    }
+    .brand-text{
+      display:flex;
+      flex-direction: column;
+      line-height: 1.1;
+    }
+    .brand-text strong{ font-size: 14px; }
+    .brand-text span{ font-size: 12px; color: var(--muted); }
+
+    .nav{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .nav a{
+      font-size: 13px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      color: #111827;
+      border: 1px solid transparent;
+    }
+    .nav a:hover{
+      background: #f3f4f6;
+      text-decoration: none;
+      border-color: #eef0f3;
+    }
+
+    .userbox{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      justify-content: flex-end;
+      min-width: 300px;
+    }
+
+    .pill{
+      font-size: 12px;
+      color: var(--muted);
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
+      white-space: nowrap;
+    }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #111827;
+      background: #111827;
+      color: #fff;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn:hover{ text-decoration:none; opacity: .95; }
+
+    .btn.secondary{
+      background: #fff;
+      color: #111827;
+    }
+
+    .container{
+      max-width: var(--max);
+      width: 100%;
+      margin: 0 auto;
+      padding: 18px 16px 28px;
+      flex: 1;
+    }
+
+    .page-card{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .page-head{
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: linear-gradient(180deg, #ffffff, #fbfbfd);
+    }
+
+    .page-head h1{
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: .2px;
+    }
+
+    .page-body{
+      padding: 16px;
+    }
+
+    .muted{ color: var(--muted); }
+
+    .messages{
+      margin: 0 0 14px;
+      display: grid;
+      gap: 10px;
+    }
+    .msg{
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 13px;
+    }
+
+    footer{
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      background: #fff;
+    }
+    .footer-inner{
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 12px 16px;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 840px){
+      .brand{ min-width: auto; }
+      .userbox{ min-width: auto; }
+      .topbar-inner{ align-items: flex-start; }
+      .nav{ justify-content: flex-start; }
+      .page-body{ padding: 12px; }
+    }
+  </style>
+
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
+  <div class="shell">
 
-    {% block content %}
-    {% endblock %}
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="{% url 'lims_core:ui-home' %}">
+          <div class="brand-badge">NL</div>
+          <div class="brand-text">
+            <strong>NARO LIMS</strong>
+            <span class="muted">Laboratory Information Management</span>
+          </div>
+        </a>
 
-    <!-- Workflow UI logic -->
-    <script src="{% static 'lims_core/js/workflow.js' %}"></script>
+        <nav class="nav" aria-label="Primary">
+          <a href="{% url 'lims_core:ui-home' %}">Home</a>
+          <a href="{% url 'lims_core:sample-list-html' %}">Samples</a>
+          <a href="{% url 'lims_core:workflow-demo' %}">Workflow demo</a>
+          <a href="/api/schema/swagger-ui/">API Docs</a>
+          <a href="{% url 'lims_core:health_check' %}">System Health</a>
+        </nav>
 
+        <div class="userbox">
+          {% if user.is_authenticated %}
+            <span class="pill">Signed in: {{ user.username }}</span>
+
+            {% if user.is_staff or user.is_superuser %}
+              <a class="btn secondary" href="/admin/">Admin</a>
+            {% endif %}
+
+            <form action="{% url 'lims_core:ui-logout' %}" method="post" style="margin:0;">
+              {% csrf_token %}
+              <button class="btn" type="submit">Logout</button>
+            </form>
+          {% else %}
+            <span class="pill">Not signed in</span>
+            <a class="btn" href="/api/auth/login/?next={% url 'lims_core:ui-home' %}">Login</a>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      {% if messages %}
+        <div class="messages">
+          {% for message in messages %}
+            <div class="msg">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="page-card">
+        <div class="page-head">
+          <h1>{% block page_title %}NARO LIMS{% endblock %}</h1>
+          <div class="muted" style="font-size:12px;">
+            {% block page_meta %}{% endblock %}
+          </div>
+        </div>
+
+        <div class="page-body">
+          {% block content %}{% endblock %}
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <div class="footer-inner">
+        <div>© {% now "Y" %} NARO LIMS</div>
+        <div class="muted">ResLab deployment</div>
+      </div>
+    </footer>
+
+  </div>
+
+  <script src="{% static 'lims_core/js/workflow.js' %}"></script>
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>

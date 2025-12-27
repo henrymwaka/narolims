@@ -27,6 +27,10 @@ from .views import (
 # UI / HTML Views
 # -------------------------------------------------
 from .views_ui import (
+    landing,            # NEW: public landing page
+    home,               # authenticated workspace home
+    ui_stats,
+    ui_logout,
     workflow_widget_demo,
     sample_list,
     sample_detail,
@@ -103,9 +107,20 @@ router.register(r"staff", StaffMemberViewSet, basename="staff")
 
 urlpatterns = [
     # ============================================================
-    # Core CRUD API
+    # UI / HTML pages
     # ============================================================
-    path("", include(router.urls)),
+    # Public landing page (no login required)
+    path("ui/", landing, name="ui-landing"),
+
+    # Authenticated workspace home
+    path("ui/home/", home, name="ui-home"),
+
+    path("ui/stats/", ui_stats, name="ui-stats"),
+    path("ui/logout/", ui_logout, name="ui-logout"),
+    path("ui/workflow-demo/", workflow_widget_demo, name="workflow-demo"),
+    path("ui/samples/", sample_list, name="sample-list-html"),
+    path("ui/samples/<int:pk>/", sample_detail, name="sample-detail-html"),
+    path("ui/experiments/<int:pk>/", experiment_detail, name="experiment-detail-html"),
 
     # ============================================================
     # System
@@ -120,105 +135,50 @@ urlpatterns = [
     # ============================================================
     # Workflow definitions (legacy-compatible)
     # ============================================================
-    path(
-        "workflows/<str:kind>/",
-        WorkflowDefinitionView.as_view(),
-        name="workflow-definition",
-    ),
-    path(
-        "workflows/<str:kind>/next/",
-        WorkflowNextStatesView.as_view(),
-        name="workflow-next-states",
-    ),
+    path("workflows/<str:kind>/", WorkflowDefinitionView.as_view(), name="workflow-definition"),
+    path("workflows/<str:kind>/next/", WorkflowNextStatesView.as_view(), name="workflow-next-states"),
 
     # ============================================================
     # Workflow runtime (single-object)
     # ============================================================
-    path(
-        "workflows/<str:kind>/<int:pk>/",
-        WorkflowRuntimeView.as_view(),
-        name="workflow-runtime",
-    ),
-    path(
-        "workflows/<str:kind>/<int:pk>/timeline/",
-        WorkflowTimelineView.as_view(),
-        name="workflow-timeline",
-    ),
+    path("workflows/<str:kind>/<int:pk>/", WorkflowRuntimeView.as_view(), name="workflow-runtime"),
+    path("workflows/<str:kind>/<int:pk>/timeline/", WorkflowTimelineView.as_view(), name="workflow-timeline"),
 
     # ============================================================
     # Role-aware workflow APIs
     # ============================================================
-    path(
-        "workflows/<str:kind>/<int:pk>/allowed/",
-        WorkflowAllowedView.as_view(),
-        name="workflow-allowed",
-    ),
-    path(
-        "workflows/<str:kind>/<int:pk>/transition/",
-        WorkflowTransitionView.as_view(),
-        name="workflow-transition",
-    ),
+    path("workflows/<str:kind>/<int:pk>/allowed/", WorkflowAllowedView.as_view(), name="workflow-allowed"),
+    path("workflows/<str:kind>/<int:pk>/transition/", WorkflowTransitionView.as_view(), name="workflow-transition"),
 
     # ============================================================
     # Bulk workflow transitions
     # ============================================================
-    path(
-        "workflows/<str:kind>/bulk/",
-        WorkflowBulkTransitionView.as_view(),
-        name="workflow-bulk-transition",
-    ),
+    path("workflows/<str:kind>/bulk/", WorkflowBulkTransitionView.as_view(), name="workflow-bulk-transition"),
 
     # ============================================================
     # Workflow introspection (canonical, read-only)
     # ============================================================
-    path(
-        "workflows/definition/<str:kind>/",
-        CanonicalWorkflowDefinitionView.as_view(),
-        name="workflow-definition-canonical",
-    ),
-    path(
-        "workflows/allowed/<str:kind>/<int:object_id>/",
-        WorkflowAllowedTransitionsView.as_view(),
-        name="workflow-allowed-transitions",
-    ),
-    path(
-        "workflows/history/<str:kind>/<int:object_id>/",
-        WorkflowHistoryView.as_view(),
-        name="workflow-history",
-    ),
+    path("workflows/definition/<str:kind>/", CanonicalWorkflowDefinitionView.as_view(), name="workflow-definition-canonical"),
+    path("workflows/allowed/<str:kind>/<int:object_id>/", WorkflowAllowedTransitionsView.as_view(), name="workflow-allowed-transitions"),
+    path("workflows/history/<str:kind>/<int:object_id>/", WorkflowHistoryView.as_view(), name="workflow-history"),
 
     # ============================================================
     # Workflow permission matrix (per-object)
     # ============================================================
-    path(
-        "workflows/permissions/<str:kind>/",
-        WorkflowPermissionMatrixView.as_view(),
-        name="workflow-permission-matrix",
-    ),
+    path("workflows/permissions/<str:kind>/", WorkflowPermissionMatrixView.as_view(), name="workflow-permission-matrix"),
 
     # ============================================================
     # Workflow permission aggregation (multi-object)
     # ============================================================
-    path(
-        "workflows/permissions/<str:kind>/aggregate/",
-        WorkflowPermissionAggregateView.as_view(),
-        name="workflow-permission-aggregate",
-    ),
+    path("workflows/permissions/<str:kind>/aggregate/", WorkflowPermissionAggregateView.as_view(), name="workflow-permission-aggregate"),
 
     # ============================================================
     # Workflow metrics
     # ============================================================
-    path(
-        "workflows/<str:kind>/<int:pk>/metrics/",
-        WorkflowMetricsView.as_view(),
-        name="workflow-metrics",
-    ),
+    path("workflows/<str:kind>/<int:pk>/metrics/", WorkflowMetricsView.as_view(), name="workflow-metrics"),
 
     # ============================================================
-    # UI demos / HTML pages
+    # Core CRUD API
     # ============================================================
-    path("ui/workflow-demo/", workflow_widget_demo, name="workflow-demo"),
-    path("ui/samples/", sample_list, name="sample-list-html"),
-    path("ui/samples/<int:pk>/", sample_detail, name="sample-detail-html"),
-    path("ui/experiments/<int:pk>/", experiment_detail, name="experiment-detail-html"),
+    path("", include(router.urls)),
 ]

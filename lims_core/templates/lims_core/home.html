@@ -1,0 +1,375 @@
+{% extends "lims_core/base.html" %}
+{% load static %}
+
+{% block title %}NARO LIMS{% endblock %}
+{% block page_title %}NARO LIMS{% endblock %}
+{% block page_meta %}Laboratory Information Management System{% endblock %}
+
+{% block content %}
+<style>
+  .wrap{max-width:1120px;margin:0 auto;padding:6px;}
+  .hero{
+    display:flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items:flex-start;
+    flex-wrap: wrap;
+    padding: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    background: #fff;
+  }
+  .hero h2{margin:0;font-size:18px}
+  .hero .sub{margin-top:6px;color:#6b7280;font-size:13px;max-width:740px}
+  .hero-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  .btnX{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:10px 12px;border-radius:12px;border:1px solid #111827;
+    font-weight:800;font-size:13px;text-decoration:none;white-space:nowrap;
+    background:#111827;color:#fff;
+  }
+  .btnX.secondary{background:#fff;color:#111827}
+  .btnX:hover{text-decoration:none;opacity:.95}
+
+  .grid{
+    margin-top:14px;
+    display:grid;
+    grid-template-columns: 1.35fr .65fr;
+    gap: 14px;
+  }
+
+  .panel{
+    background:#fff;border:1px solid #e5e7eb;border-radius:14px;
+    padding:14px;box-shadow:0 8px 26px rgba(16,24,40,.05);
+  }
+  .panel h3{margin:0;font-size:15px}
+  .muted{color:#6b7280;font-size:13px}
+
+  .kpis{
+    margin-top:10px;
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .kpi{
+    border:1px solid #eef0f3;border-radius:14px;padding:10px;background:#fff;
+  }
+  .kpi .label{font-size:12px;color:#6b7280}
+  .kpi .val{font-size:20px;font-weight:900;margin-top:2px}
+
+  .modules{
+    margin-top:10px;
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .mod{
+    border:1px solid #eef0f3;border-radius:14px;padding:12px;background:#fff;
+  }
+  .mod .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .mod .name{font-weight:900}
+  .tag{
+    font-size:11px;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;color:#111827;background:#fff;
+    white-space:nowrap;
+  }
+  .mod .desc{margin-top:6px;color:#6b7280;font-size:13px}
+  .mod .actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+
+  .list{list-style:none;margin:10px 0 0 0;padding:0}
+  .list li{padding:10px 0;border-top:1px solid #f1f3f6}
+  .pill{
+    display:inline-block;font-size:11px;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;margin-right:8px
+  }
+
+  .quick{
+    display:grid;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .qa{
+    border:1px solid #eef0f3;border-radius:14px;padding:12px;background:#fff;
+  }
+  .qa .title{font-weight:900}
+  .qa .hint{margin-top:4px;color:#6b7280;font-size:12px}
+  .qa .row{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+
+  .mini-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .mini-form input{
+    flex:1;min-width:180px;
+    padding:10px 12px;border-radius:12px;border:1px solid #e5e7eb;outline:none;
+    font-size:13px;background:#fff;
+  }
+
+  .note{
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid #eef0f3;
+    background:#fbfbfd;
+    color:#374151;
+    font-size:13px;
+  }
+  .note b{font-weight:900}
+
+  @media (max-width: 980px){
+    .grid{grid-template-columns: 1fr}
+    .modules{grid-template-columns: 1fr}
+  }
+</style>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div>
+      <h2>National Agricultural Research Organisation Laboratory Information Management System</h2>
+      <div class="sub">
+        NARO LIMS is the operational layer for sample traceability, workflow enforcement, audit visibility, and integration-ready data access.
+        Use it to register samples, move them through controlled statuses, and preserve an evidence trail that stands up to quality and compliance checks.
+      </div>
+
+      <div class="note">
+        Signed in as <b>{{ user.username }}</b><span id="labLabel"></span>
+      </div>
+
+      <form class="mini-form" onsubmit="return window.__openSampleById(event);">
+        <input id="sampleId" type="number" inputmode="numeric" min="1" placeholder="Open sample by ID (example: 18)">
+        <a class="btnX secondary" href="/lims/ui/samples/">Browse samples</a>
+        <button class="btnX" type="submit">Open</button>
+      </form>
+    </div>
+
+    <div class="hero-actions">
+      <a class="btnX" href="/lims/ui/samples/">Open Samples Dashboard</a>
+      <a class="btnX secondary" href="/lims/ui/workflow-demo/">Workflow demo</a>
+      {% if user.is_staff or user.is_superuser %}
+        <a class="btnX secondary" href="/admin/">Admin</a>
+      {% endif %}
+      {# Logout is handled in base.html as a POST button. Do not duplicate it here. #}
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <div class="panel">
+      <h3>Operational modules</h3>
+      <div class="muted" style="margin-top:6px;">
+        Start from the core operational areas. Each module should be usable as a daily workspace.
+      </div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <div class="label">Samples in system</div>
+          <div id="kpiSamples" class="val">—</div>
+        </div>
+        <div class="kpi">
+          <div class="label">Experiments in system</div>
+          <div id="kpiExperiments" class="val">—</div>
+        </div>
+      </div>
+
+      <div class="modules">
+        <div class="mod">
+          <div class="top">
+            <div class="name">Samples</div>
+            <span class="tag">Active</span>
+          </div>
+          <div class="desc">
+            Register, track, and transition samples through controlled workflow states with audit visibility.
+          </div>
+          <div class="actions">
+            <a class="btnX" href="/lims/ui/samples/">Open</a>
+            <a class="btnX secondary" href="/lims/workflows/sample/bulk/">Bulk status</a>
+          </div>
+        </div>
+
+        <div class="mod">
+          <div class="top">
+            <div class="name">Workflow control</div>
+            <span class="tag">Active</span>
+          </div>
+          <div class="desc">
+            Validate workflow rules, role permissions, and allowed transitions using the demo widget and policy endpoints.
+          </div>
+          <div class="actions">
+            <a class="btnX" href="/lims/ui/workflow-demo/">Open demo</a>
+            <a class="btnX secondary" href="/lims/workflows/permissions/sample/">Permissions</a>
+          </div>
+        </div>
+
+        <div class="mod">
+          <div class="top">
+            <div class="name">Inventory</div>
+            <span class="tag">Admin-first</span>
+          </div>
+          <div class="desc">
+            Items, stocks, and consumption tracking. UI can follow, admin entry and API access already work.
+          </div>
+          <div class="actions">
+            <a class="btnX secondary" href="/admin/">Open admin</a>
+            <a class="btnX secondary" href="/lims/inventory/">API endpoint</a>
+          </div>
+        </div>
+
+        <div class="mod">
+          <div class="top">
+            <div class="name">Reports and exports</div>
+            <span class="tag">Next</span>
+          </div>
+          <div class="desc">
+            Compliance-ready outputs and operational summaries (queues, turnaround time, exceptions, and audit extracts).
+          </div>
+          <div class="actions">
+            <a class="btnX secondary" href="/lims/health/">System status</a>
+            <a class="btnX secondary" href="/api/schema/swagger-ui/">API docs</a>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <h3>Recent activity</h3>
+        <div class="muted" style="margin-top:6px;">A short view of what changed recently.</div>
+        <ul class="list" id="recentEvents">
+          <li class="muted">Loading…</li>
+        </ul>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h3>Quick start</h3>
+        <div class="muted" style="margin-top:6px;">
+          Common actions for day-to-day bench operations.
+        </div>
+
+        <div class="quick">
+          <div class="qa">
+            <div class="title">Review sample queue</div>
+            <div class="hint">Filter by lab context and update workflow statuses.</div>
+            <div class="row">
+              <a class="btnX" href="/lims/ui/samples/">Open queue</a>
+              <a class="btnX secondary" href="/lims/workflows/sample/bulk/">Bulk update</a>
+            </div>
+          </div>
+
+          <div class="qa">
+            <div class="title">Identity and access</div>
+            <div class="hint">Confirm which laboratory context and permissions apply to your account.</div>
+            <div class="row">
+              <a class="btnX secondary" href="/lims/whoami/">Who am I</a>
+              {% if user.is_staff or user.is_superuser %}
+                <a class="btnX secondary" href="/admin/">Admin</a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="qa">
+            <div class="title">System status and integrations</div>
+            <div class="hint">Health check and API documentation for external integrations.</div>
+            <div class="row">
+              <a class="btnX secondary" href="/lims/health/">Health</a>
+              <a class="btnX secondary" href="/api/schema/swagger-ui/">Swagger</a>
+              <a class="btnX secondary" href="/api/schema/redoc/">ReDoc</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px;">
+        <h3>Attention</h3>
+        <div class="muted" style="margin-top:6px;">Exceptions and alerts.</div>
+        <ul class="list" id="openAlerts">
+          <li class="muted">Loading…</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  window.__openSampleById = function(ev){
+    ev.preventDefault();
+    const el = document.getElementById("sampleId");
+    const id = (el && el.value) ? String(el.value).trim() : "";
+    if (!id){
+      return false;
+    }
+    window.location.href = "/lims/ui/samples/" + encodeURIComponent(id) + "/";
+    return false;
+  };
+
+  const kpiSamples = document.getElementById("kpiSamples");
+  const kpiExperiments = document.getElementById("kpiExperiments");
+  const labLabel = document.getElementById("labLabel");
+  const recentEvents = document.getElementById("recentEvents");
+  const openAlerts = document.getElementById("openAlerts");
+
+  function li(text, badge){
+    const el = document.createElement("li");
+    if (badge){
+      const b = document.createElement("span");
+      b.className = "pill";
+      b.textContent = badge;
+      el.appendChild(b);
+
+      const strong = document.createElement("b");
+      strong.textContent = text;
+      el.appendChild(strong);
+    } else {
+      el.className = "muted";
+      el.textContent = text;
+    }
+    return el;
+  }
+
+  fetch("/lims/ui/stats/", {credentials: "same-origin"})
+    .then(r => r.json())
+    .then(data => {
+      if (!data || data.ok === false){
+        kpiSamples.textContent = "—";
+        kpiExperiments.textContent = "—";
+        recentEvents.innerHTML = "";
+        recentEvents.appendChild(li("Stats unavailable."));
+        openAlerts.innerHTML = "";
+        openAlerts.appendChild(li("Stats unavailable."));
+        return;
+      }
+
+      if (data.lab_id){
+        labLabel.textContent = " · Active lab: " + data.lab_id;
+      }
+
+      kpiSamples.textContent = (data.stats && data.stats.samples_total != null) ? data.stats.samples_total : "—";
+      kpiExperiments.textContent = (data.stats && data.stats.experiments_total != null) ? data.stats.experiments_total : "—";
+
+      recentEvents.innerHTML = "";
+      if (data.recent_events && data.recent_events.length){
+        data.recent_events.slice(0, 6).forEach(e => {
+          recentEvents.appendChild(li(e.label || "Event", "Event"));
+        });
+      } else {
+        recentEvents.appendChild(li("No recent activity."));
+      }
+
+      openAlerts.innerHTML = "";
+      if (data.open_alerts && data.open_alerts.length){
+        data.open_alerts.slice(0, 6).forEach(a => {
+          openAlerts.appendChild(li(a.label || "Alert", "Alert"));
+        });
+      } else {
+        openAlerts.appendChild(li("No open alerts."));
+      }
+    })
+    .catch(() => {
+      kpiSamples.textContent = "—";
+      kpiExperiments.textContent = "—";
+      recentEvents.innerHTML = "";
+      recentEvents.appendChild(li("Stats unavailable."));
+      openAlerts.innerHTML = "";
+      openAlerts.appendChild(li("Stats unavailable."));
+    });
+})();
+</script>
+{% endblock %}
