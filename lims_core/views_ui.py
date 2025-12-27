@@ -17,49 +17,37 @@ from .workflows import workflow_definition
 
 def landing(request):
     """
-    Public landing page for NARO LIMS.
-    No DB access. No login required.
+    Public landing page for the platform namespace (/lims/).
+
+    Rules:
+      - Do not touch the database (must be safe even during partial migrations).
+      - If authenticated, send to the workspace dashboard (/lims/ui/).
     """
+    if getattr(request, "user", None) and request.user.is_authenticated:
+        return redirect("/lims/ui/")
+
     return render(request, "lims_core/landing.html")
-
-
-def ui_login_redirect(request):
-    """
-    If a user hits a UI route without being authenticated, send them to the
-    session-login page (DRF browsable login), then back to /lims/ui/home/.
-    """
-    login_url = "/api/auth/login/"
-    next_url = request.GET.get("next") or "/lims/ui/home/"
-    return redirect(f"{login_url}?next={next_url}")
 
 
 def ui_logout(request):
     """
     UI logout endpoint (GET-safe).
-    Uses Django session logout and redirects to a safe local next URL.
+    Avoids DRF logout 405 by using Django's auth_logout directly.
 
-    Priority:
-      1) ?next=/some/local/path
-      2) /lims/ui/
+    Redirect order:
+      1) ?next=/some/path
+      2) /lims/  (public landing)
     """
-    next_url = request.GET.get("next") or "/lims/ui/"
-
-    # prevent open redirects
-    if not isinstance(next_url, str):
-        next_url = "/lims/ui/"
-    if not next_url.startswith("/") or next_url.startswith("//") or "://" in next_url:
-        next_url = "/lims/ui/"
-
+    next_url = request.GET.get("next") or "/lims/"
     auth_logout(request)
     return redirect(next_url)
 
 
-@login_required(login_url="/api/auth/login/")
+@login_required
 def home(request):
     """
-    Workspace home (post-login).
-    Must be safe and not 500 even if DB is shaky.
-    Dynamic counts load via /lims/ui/stats/.
+    Authenticated workspace home (/lims/ui/).
+    Intentionally light on DB access. Dynamic stats are loaded via /lims/ui/stats/.
     """
     return render(
         request,
@@ -70,10 +58,10 @@ def home(request):
     )
 
 
-@login_required(login_url="/api/auth/login/")
+@login_required
 def ui_stats(request):
     """
-    JSON stats used by the workspace home. Must never 500.
+    JSON stats used by the workspace homepage. Must never 500.
     Returns best-effort lab-scoped counts and recent items.
     """
     payload = {
@@ -184,7 +172,7 @@ def ui_stats(request):
         return JsonResponse(payload, status=200)
 
 
-@login_required(login_url="/api/auth/login/")
+@login_required
 def workflow_widget_demo(request):
     """
     Browser-facing demo page for the workflow widget.
@@ -227,7 +215,7 @@ def _extract_workflow_statuses(wf: dict) -> list[str]:
     return cleaned
 
 
-@login_required(login_url="/api/auth/login/")
+@login_required
 def sample_list(request):
     lab_ids = list(
         UserRole.objects.filter(user=request.user)
@@ -263,13 +251,13 @@ def sample_list(request):
     return render(request, "lims_core/samples/list.html", context)
 
 
-@login_required(login_url="/api/auth/login/")
+@login_required
 def sample_detail(request, pk: int):
     sample = get_object_or_404(Sample, pk=pk)
     return render(request, "lims_core/samples/detail.html", {"sample": sample})
 
 
-@login_required(login_url="/api/auth/login/")
+@login_required
 def experiment_detail(request, pk: int):
     experiment = get_object_or_404(Experiment, pk=pk)
     return render(request, "lims_core/experiments/detail.html", {"experiment": experiment})

@@ -27,8 +27,8 @@ from .views import (
 # UI / HTML Views
 # -------------------------------------------------
 from .views_ui import (
-    landing,            # NEW: public landing page
-    home,               # authenticated workspace home
+    landing,
+    home,
     ui_stats,
     ui_logout,
     workflow_widget_demo,
@@ -107,20 +107,14 @@ router.register(r"staff", StaffMemberViewSet, basename="staff")
 
 urlpatterns = [
     # ============================================================
-    # UI / HTML pages
+    # Public landing (replaces DRF api-root at /lims/)
     # ============================================================
-    # Public landing page (no login required)
-    path("ui/", landing, name="ui-landing"),
+    path("", landing, name="landing"),
 
-    # Authenticated workspace home
-    path("ui/home/", home, name="ui-home"),
-
-    path("ui/stats/", ui_stats, name="ui-stats"),
-    path("ui/logout/", ui_logout, name="ui-logout"),
-    path("ui/workflow-demo/", workflow_widget_demo, name="workflow-demo"),
-    path("ui/samples/", sample_list, name="sample-list-html"),
-    path("ui/samples/<int:pk>/", sample_detail, name="sample-detail-html"),
-    path("ui/experiments/<int:pk>/", experiment_detail, name="experiment-detail-html"),
+    # ============================================================
+    # Core CRUD API
+    # ============================================================
+    path("", include(router.urls)),
 
     # ============================================================
     # System
@@ -178,7 +172,13 @@ urlpatterns = [
     path("workflows/<str:kind>/<int:pk>/metrics/", WorkflowMetricsView.as_view(), name="workflow-metrics"),
 
     # ============================================================
-    # Core CRUD API
+    # UI / HTML pages (authenticated workspace)
     # ============================================================
-    path("", include(router.urls)),
+    path("ui/", home, name="ui-home"),
+    path("ui/stats/", ui_stats, name="ui-stats"),
+    path("ui/logout/", ui_logout, name="ui-logout"),
+    path("ui/workflow-demo/", workflow_widget_demo, name="workflow-demo"),
+    path("ui/samples/", sample_list, name="sample-list-html"),
+    path("ui/samples/<int:pk>/", sample_detail, name="sample-detail-html"),
+    path("ui/experiments/<int:pk>/", experiment_detail, name="experiment-detail-html"),
 ]

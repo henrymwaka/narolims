@@ -1,23 +1,25 @@
 {% extends "lims_core/base.html" %}
-{% load static %}
-
-{% block title %}NARO LIMS{% endblock %}
+{% block title %}NARO LIMS | Laboratory Information Management{% endblock %}
 {% block page_title %}NARO LIMS{% endblock %}
-{% block page_meta %}Welcome{% endblock %}
+{% block page_meta %}National Agricultural Research Organisation{% endblock %}
 
 {% block content %}
 <style>
-  .wrap{max-width:1120px;margin:0 auto;padding:6px;}
+  .landing-wrap{max-width:1120px;margin:0 auto;padding:6px;}
   .hero{
-    padding:18px;
+    background:#fff;
     border:1px solid #e5e7eb;
-    border-radius:14px;
-    background: radial-gradient(1200px 320px at 20% 0%, #eef2ff 0%, #ffffff 55%);
+    border-radius:16px;
+    padding:18px;
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    align-items:flex-start;
+    flex-wrap:wrap;
   }
-  .hero h2{margin:0;font-size:20px}
-  .hero p{margin:8px 0 0 0;color:#6b7280;font-size:13px;max-width:860px;line-height:1.55}
-  .row{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-
+  .hero h2{margin:0;font-size:20px;}
+  .hero p{margin:8px 0 0 0;color:#6b7280;font-size:13px;max-width:70ch;}
+  .cta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px;}
   .btnX{
     display:inline-flex;align-items:center;justify-content:center;
     padding:10px 12px;border-radius:12px;border:1px solid #111827;
@@ -30,227 +32,98 @@
   .grid{
     margin-top:14px;
     display:grid;
-    grid-template-columns: 1.2fr .8fr;
-    gap:14px;
-  }
-
-  .panel{
-    background:#fff;border:1px solid #e5e7eb;border-radius:14px;
-    padding:14px;box-shadow:0 8px 26px rgba(16,24,40,.05);
-  }
-  .panel h3{margin:0;font-size:15px}
-  .muted{color:#6b7280;font-size:13px}
-
-  .cards{
-    margin-top:10px;
-    display:grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
   }
   .card{
-    border:1px solid #eef0f3;border-radius:14px;padding:12px;background:#fff;
+    background:#fff;
+    border:1px solid #e5e7eb;
+    border-radius:16px;
+    padding:16px;
+    box-shadow:0 8px 26px rgba(16,24,40,.05);
   }
-  .card .title{font-weight:900}
-  .tag{
-    display:inline-block;
-    font-size:11px;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;
-    color:#111827;background:#fff;margin-top:8px;
-  }
-  .card .desc{margin-top:6px;color:#6b7280;font-size:13px}
-  .card .actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  .card h3{margin:0;font-size:15px;}
+  .card ul{margin:10px 0 0 18px;color:#374151;font-size:13px;}
+  .card li{margin:6px 0;}
+  .muted{color:#6b7280;font-size:13px;}
 
-  .list{list-style:none;margin:10px 0 0 0;padding:0}
-  .list li{padding:10px 0;border-top:1px solid #f1f3f6}
-  .pill{
-    display:inline-block;font-size:11px;border:1px solid #e5e7eb;border-radius:999px;
-    padding:2px 8px;margin-right:8px;background:#fff;
+  .band{
+    margin-top:14px;
+    background:linear-gradient(180deg,#ffffff,#fbfbfd);
+    border:1px solid #e5e7eb;
+    border-radius:16px;
+    padding:16px;
   }
-
-  .note{
-    margin-top:10px;
-    padding:10px 12px;
-    border-radius:12px;
-    border:1px solid #eef0f3;
-    background:#fbfbfd;
-    color:#374151;
-    font-size:13px;
-  }
-  .note b{font-weight:900}
+  .band h3{margin:0;font-size:15px;}
+  .band p{margin:8px 0 0 0;color:#6b7280;font-size:13px;max-width:85ch;}
 
   @media (max-width: 980px){
-    .grid{grid-template-columns: 1fr}
-    .cards{grid-template-columns: 1fr}
+    .grid{grid-template-columns: 1fr;}
   }
 </style>
 
-<div class="wrap">
+<div class="landing-wrap">
 
   <div class="hero">
-    <h2>National Agricultural Research Organisation Laboratory Information Management System</h2>
-    <p>
-      NARO LIMS is built to standardize laboratory operations across units by enforcing traceability, controlled workflows,
-      audit-ready transitions, and integration-ready access to laboratory data.
-      It is designed for real lab work: sample registration, status progression, accountability, and reporting.
-    </p>
+    <div>
+      <h2>Laboratory Information Management for NARO</h2>
+      <p>
+        NARO-LIMS is the operational platform for registering samples, tracking laboratory workflows, enforcing role-based approvals,
+        and producing audit-ready records for routine operations and institutional reporting.
+      </p>
 
-    <div class="row">
-      {% if user.is_authenticated %}
-        <a class="btnX" href="/lims/ui/home/">Enter workspace</a>
-        <a class="btnX secondary" href="/lims/ui/samples/">Open samples</a>
-        <a class="btnX secondary" href="/lims/ui/workflow-demo/">Workflow demo</a>
-      {% else %}
-        <a class="btnX" href="/api/auth/login/?next=/lims/ui/">Sign in</a>
+      <div class="cta">
+        <a class="btnX" href="/api/auth/login/?next=/lims/ui/">Enter workspace</a>
         <a class="btnX secondary" href="/api/schema/swagger-ui/">API documentation</a>
         <a class="btnX secondary" href="/lims/health/">System health</a>
-      {% endif %}
+      </div>
+
+      <div class="muted" style="margin-top:10px;">
+        Tip: If you are already signed in, you will be redirected to the workspace automatically.
+      </div>
     </div>
 
-    <div class="note">
-      {% if user.is_authenticated %}
-        Signed in as <b>{{ user.username }}</b>. Use “Enter workspace” to start operations.
-      {% else %}
-        You are not signed in. Sign in to access laboratory modules and role-scoped actions.
-      {% endif %}
+    <div class="card" style="min-width:280px;max-width:420px;">
+      <h3>At a glance</h3>
+      <ul>
+        <li>Sample registration and traceability</li>
+        <li>Workflow states with permission controls</li>
+        <li>Bulk status transitions with audit logging</li>
+        <li>Lab-scoped access using user roles</li>
+        <li>API-first architecture for integrations</li>
+      </ul>
     </div>
   </div>
 
   <div class="grid">
-
-    <div class="panel">
-      <h3>What this system controls</h3>
-      <div class="muted" style="margin-top:6px;">
-        These are the minimum operational guarantees a LIMS must provide in a working lab.
-      </div>
-
-      <div class="cards">
-        <div class="card">
-          <div class="title">Traceability</div>
-          <span class="tag">Core</span>
-          <div class="desc">
-            Every sample and action should be attributable and retrievable, from intake to final disposition.
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="title">Workflow enforcement</div>
-          <span class="tag">Core</span>
-          <div class="desc">
-            Samples move through controlled states. Allowed transitions depend on role and laboratory context.
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="title">Audit visibility</div>
-          <span class="tag">Compliance</span>
-          <div class="desc">
-            Status changes and key actions must be explainable, timestamped, and reviewable without guesswork.
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="title">Integration readiness</div>
-          <span class="tag">API</span>
-          <div class="desc">
-            Structured APIs allow dashboards, external systems, and reports to consume consistent lab data.
-          </div>
-        </div>
-      </div>
-
-      <div style="margin-top:14px;">
-        <h3>Core modules</h3>
-        <div class="muted" style="margin-top:6px;">Primary operational areas currently exposed.</div>
-
-        <div class="cards">
-          <div class="card">
-            <div class="title">Samples</div>
-            <span class="tag">Active</span>
-            <div class="desc">Registration, listing, status tracking, workflow transitions.</div>
-            <div class="actions">
-              <a class="btnX" href="/lims/ui/samples/">Open</a>
-              <a class="btnX secondary" href="/lims/workflows/sample/bulk/">Bulk status</a>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="title">Workflow engine</div>
-            <span class="tag">Active</span>
-            <div class="desc">Permissions, allowed transitions, and demo widget for validation.</div>
-            <div class="actions">
-              <a class="btnX" href="/lims/ui/workflow-demo/">Open demo</a>
-              <a class="btnX secondary" href="/lims/workflows/permissions/sample/">Permissions</a>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="title">Inventory</div>
-            <span class="tag">Admin-first</span>
-            <div class="desc">Items and stock are manageable in admin, UI can be layered on next.</div>
-            <div class="actions">
-              <a class="btnX secondary" href="/admin/">Admin</a>
-              <a class="btnX secondary" href="/lims/inventory/">API endpoint</a>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="title">Quality and operations</div>
-            <span class="tag">Next</span>
-            <div class="desc">Turnaround time, queues, exceptions, audit extracts, compliance exports.</div>
-            <div class="actions">
-              <a class="btnX secondary" href="/lims/health/">System status</a>
-              <a class="btnX secondary" href="/api/schema/swagger-ui/">API docs</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h3>Navigation</h3>
-      <div class="muted" style="margin-top:6px;">
-        Useful entry points for operations and validation.
-      </div>
-
-      <ul class="list">
-        <li>
-          <span class="pill">UI</span>
-          <b>Samples</b>
-          <div class="muted" style="margin-top:4px;">Primary operational queue and workflow actions.</div>
-          <div style="margin-top:8px;">
-            <a class="btnX secondary" href="/lims/ui/samples/">Open</a>
-          </div>
-        </li>
-        <li>
-          <span class="pill">UI</span>
-          <b>Workflow demo</b>
-          <div class="muted" style="margin-top:4px;">Validate allowed transitions and role behavior.</div>
-          <div style="margin-top:8px;">
-            <a class="btnX secondary" href="/lims/ui/workflow-demo/">Open</a>
-          </div>
-        </li>
-        <li>
-          <span class="pill">API</span>
-          <b>Swagger / Schema</b>
-          <div class="muted" style="margin-top:4px;">Integrations, documentation, endpoint verification.</div>
-          <div style="margin-top:8px;">
-            <a class="btnX secondary" href="/api/schema/swagger-ui/">Swagger</a>
-            <a class="btnX secondary" href="/api/schema/redoc/">ReDoc</a>
-          </div>
-        </li>
-        <li>
-          <span class="pill">System</span>
-          <b>Health check</b>
-          <div class="muted" style="margin-top:4px;">Quick availability check for services.</div>
-          <div style="margin-top:8px;">
-            <a class="btnX secondary" href="/lims/health/">Open</a>
-          </div>
-        </li>
+    <div class="card">
+      <h3>What this system is for</h3>
+      <ul>
+        <li>Maintain a single source of truth for laboratory sample identity and status.</li>
+        <li>Ensure consistent workflow transitions across staff and labs.</li>
+        <li>Support operational reporting and exception tracking.</li>
+        <li>Enable integrations with external systems through stable APIs.</li>
       </ul>
-
-      <div class="note">
-        Tip: keep <b>/lims/ui/</b> as the welcome entry. Put operational KPIs under <b>/lims/ui/home/</b>.
-      </div>
     </div>
 
+    <div class="card">
+      <h3>Governance and audit posture</h3>
+      <ul>
+        <li>Role assignment controls what actions are allowed.</li>
+        <li>Workflow transitions are validated and recorded.</li>
+        <li>Bulk actions remain traceable and reviewable.</li>
+        <li>System health endpoints support uptime verification.</li>
+      </ul>
+    </div>
   </div>
+
+  <div class="band">
+    <h3>Next user-facing milestones</h3>
+    <p>
+      This landing page is the stable entry point for NARO-LIMS. The workspace will continue evolving toward a wider, operations-first layout
+      like your Omics portal, with module dashboards, queue views, and fast actions for bench and admin workflows.
+    </p>
+  </div>
+
 </div>
 {% endblock %}
