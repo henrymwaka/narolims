@@ -79,7 +79,6 @@
   table.samples thead th {
     text-align: left;
     font-size: 12px;
-    letter-spacing: .3px;
     text-transform: uppercase;
     color: #6b7280;
     background: #fbfbfd;
@@ -100,12 +99,6 @@
     background: #fafafa;
   }
 
-  .col-check { width: 44px; }
-  .col-id    { width: 80px; }
-  .col-sid   { width: 320px; }
-  .col-stat  { width: 200px; }
-  .col-link  { width: 110px; }
-
   .pill {
     display: inline-block;
     padding: 4px 10px;
@@ -116,45 +109,38 @@
     background: #fff;
   }
 
-  a.inline-link {
-    color: #111827;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+  .sla-pill {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid #e5e7eb;
   }
 
-  #bulk-error {
-    display: none;
-    margin-top: 10px;
-    color: #b00020;
-    font-size: 13px;
-  }
+  .sla-ok { background: #e6f4ea; color: #137333; }
+  .sla-warning { background: #fff4e5; color: #b06000; }
+  .sla-breached { background: #fdecea; color: #b00020; }
+  .sla-na { background: #f3f4f6; color: #6b7280; }
 
-  #bulk-result {
-    display: none;
-    margin-top: 10px;
-    background: #f7f7f7;
-    padding: 10px;
-    border-radius: 10px;
-    overflow: auto;
-    max-height: 260px;
+  .batch-context {
     font-size: 12px;
+    color: #6b7280;
+    margin-top: 2px;
   }
 
-  @media (max-width: 720px) {
-    .field select,
-    .field input {
-      min-width: 180px;
-      width: 100%;
-    }
+  .batch-context a {
+    color: #2563eb;
+    text-decoration: none;
+  }
+
+  .batch-context a:hover {
+    text-decoration: underline;
   }
 </style>
 {% endblock %}
 
 {% block content %}
-
-<div style="margin-bottom: 10px;">
-  <a class="inline-link" href="/lims/ui/workflow-demo/">Workflow demo</a>
-</div>
 
 <div class="toolbar">
   <div class="toolbar-row">
@@ -166,54 +152,72 @@
           <option value="{{ st }}">{{ st }}</option>
         {% endfor %}
       </select>
-
-      {# JS updates this after fetching statuses #}
-      <div class="tiny">statuses: <span id="bulk-status-count">{{ workflow_statuses|length }}</span></div>
+      <div class="tiny">statuses: {{ workflow_statuses|length }}</div>
     </div>
 
-    <div class="field" style="flex:1; min-width: 260px;">
+    <div class="field" style="flex:1;">
       <label for="bulk-comment">Comment</label>
-      <input id="bulk-comment" type="text" placeholder="optional note" style="width:100%;">
+      <input id="bulk-comment" type="text" placeholder="optional note">
     </div>
 
     <div>
-      <button class="btn" id="bulk-apply" disabled>Apply to selected</button>
+      <button class="btn" id="bulk-apply" disabled>Apply</button>
       <div class="tiny"><span id="bulk-count">0 selected</span></div>
     </div>
   </div>
-
-  <div id="bulk-error"></div>
-  <pre id="bulk-result"></pre>
 </div>
 
 <div class="table-wrap">
   <table class="samples">
     <thead>
       <tr>
-        <th class="col-check"><input type="checkbox" id="check-all"></th>
-        <th class="col-id">ID</th>
-        <th class="col-sid">Sample ID</th>
-        <th class="col-stat">Status</th>
-        <th class="col-link">Link</th>
+        <th><input type="checkbox" id="check-all"></th>
+        <th>ID</th>
+        <th>Sample</th>
+        <th>Status</th>
+        <th>SLA</th>
+        <th>Link</th>
       </tr>
     </thead>
+
     <tbody>
       {% for s in samples %}
-        <tr data-sample-id="{{ s.id }}">
-          <td class="col-check"><input class="row-check" type="checkbox" value="{{ s.id }}"></td>
-          <td class="col-id">{{ s.id }}</td>
+      <tr>
+        <td><input class="row-check" type="checkbox" value="{{ s.id }}"></td>
+        <td>{{ s.id }}</td>
 
-          {# safe fallback: if sample_id is empty/None, show the object's __str__ #}
-          <td class="col-sid">{{ s.sample_id|default:s }}</td>
+        <td>
+          <strong>{{ s.sample_id|default:"(unlabeled)" }}</strong>
+          {% if s.batch %}
+            <div class="batch-context">
+              Batch:
+              <a href="/lims/ui/batches/{{ s.batch.id }}/">
+                {{ s.batch.batch_code }}
+              </a>
+            </div>
+          {% endif %}
+        </td>
 
-          <td class="col-stat">
-            <span class="pill">{{ s.status }}</span>
-          </td>
+        <td>
+          <span class="pill">{{ s.safe_status }}</span>
+        </td>
 
-          <td class="col-link"><a class="inline-link" href="/lims/ui/samples/{{ s.id }}/">open</a></td>
-        </tr>
+        <td>
+          {% if s.sla %}
+            <span class="sla-pill sla-{{ s.sla.status }}">
+              {{ s.sla.status|upper }}
+            </span>
+          {% else %}
+            <span class="sla-pill sla-na">N/A</span>
+          {% endif %}
+        </td>
+
+        <td>
+          <a href="/lims/ui/samples/{{ s.id }}/">open</a>
+        </td>
+      </tr>
       {% empty %}
-        <tr><td colspan="5" style="padding:12px;">No samples found.</td></tr>
+      <tr><td colspan="6">No samples found.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -222,7 +226,6 @@
 <script>
   window.NAROLIMS_UI = window.NAROLIMS_UI || {};
   window.NAROLIMS_UI.bulkUrl = "/lims/workflows/sample/bulk/";
-  window.NAROLIMS_UI.statusesUrl = "/lims/workflows/sample/";
   window.NAROLIMS_UI.labId = "{{ lab_id }}";
 </script>
 <script src="{% static 'lims_core/js/workflow_bulk.js' %}?v=4"></script>

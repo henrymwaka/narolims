@@ -1,67 +1,183 @@
-/* Workflow widget */
+/* =========================================================
+   Workflow Widget (Self-contained)
+========================================================= */
 
 .workflow-widget {
-  padding: 0.75rem;
-  border: 1px solid #d0d0d0;
-  border-radius: 6px;
-  background: #fafafa;
-  max-width: 420px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  background: #ffffff;
+  max-width: 640px;
 }
 
-.workflow-current {
-  margin-bottom: 0.5rem;
+/* Header */
+
+.workflow-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
 }
 
-.workflow-status {
-  font-weight: 600;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  background: #eef;
+.workflow-title {
+  display: flex;
+  flex-direction: column;
 }
+
+.workflow-title strong {
+  font-size: 14px;
+}
+
+.workflow-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.workflow-status-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Actions */
 
 .workflow-actions {
-  margin-top: 0.5rem;
+  margin-bottom: 12px;
 }
 
-.workflow-actions button {
-  margin-right: 0.4rem;
-  margin-bottom: 0.3rem;
+.workflow-label {
+  font-size: 12px;
+  color: #374151;
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: block;
 }
+
+.workflow-action-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.workflow-action-row select {
+  min-width: 160px;
+}
+
+.workflow-action-row input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.workflow-action-row button {
+  white-space: nowrap;
+}
+
+/* Hint / disabled explanation */
+
+.workflow-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Errors */
 
 .workflow-error {
-  margin-top: 0.5rem;
-  font-size: 0.9em;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #dc2626;
 }
-/* -----------------------------------------
-   Status pills
------------------------------------------ */
+
+/* =========================================================
+   Status Pills
+========================================================= */
 
 .status-pill {
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #fff;
-    margin-left: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: uppercase;
 }
 
-.status-pill.INITIAL {
-    background-color: #6c757d;
-}
-
-.status-pill.IN_PROCESS {
-    background-color: #0d6efd;
-}
-
-.status-pill.REVIEW {
-    background-color: #fd7e14;
-}
-
-.status-pill.APPROVED {
-    background-color: #198754;
-}
-
+/* map exactly to workflow states */
+.status-pill.INITIAL { background: #6b7280; }
+.status-pill.REGISTERED { background: #2563eb; }
+.status-pill.IN_PROCESS,
+.status-pill.IN_PROGRESS { background: #0ea5e9; }
+.status-pill.REVIEW { background: #f97316; }
+.status-pill.APPROVED { background: #16a34a; }
 .status-pill.ARCHIVED,
-.status-pill.REJECTED {
-    background-color: #adb5bd;
+.status-pill.REJECTED { background: #9ca3af; }
+
+/* SLA badge (future wiring) */
+
+.sla-indicator {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* =========================================================
+   Timeline
+========================================================= */
+
+.workflow-timeline {
+  margin-top: 16px;
+}
+
+.timeline-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.timeline {
+  border-left: 2px solid #e5e7eb;
+  padding-left: 10px;
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-row {
+  position: relative;
+  padding-left: 14px;
+  font-size: 13px;
+}
+
+.timeline-row::before {
+  content: "";
+  position: absolute;
+  left: -9px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+}
+
+.timeline-row.latest::before {
+  background: #111827;
+}
+
+.timeline-main {
+  font-weight: 600;
+  color: #111827;
+}
+
+.timeline-meta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.timeline-comment {
+  margin-top: 2px;
+  font-style: italic;
+  font-size: 12px;
+  color: #374151;
 }

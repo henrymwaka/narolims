@@ -149,3 +149,22 @@ Look for the Python traceback lines around the GET `/lims/ui/` request.
 - `/lims/ui/` requires login
 - Logout works and returns to `/lims/` without 405
 - Samples UI still loads and workflow JS still loads
+
+
+## 2025-12-27
+
+### Added
+- Public landing section under `/lims/` with top menu: Features, Updates, Docs, System Status.
+- Feature pages:
+  - `/lims/features/` (feature overview)
+  - `/lims/features/<slug>/` (module detail pages)
+- Updates page `/lims/updates/` that renders `docs/CHANGELOG_NARO-LIMS_UI.md`.
+- Docs hub `/lims/docs/` with links to API docs, health, identity, and workspace.
+
+### Fixed
+- Logout 405: replaced DRF logout usage with GET-safe UI logout at `/lims/ui/logout/`.
+- Duplicate logout buttons: standardized logout to appear once in the authenticated topbar.
+
+### Changed
+- Navigation now separates public landing pages from authenticated workspace pages.
+- UI base template menu now includes Landing, Workspace, Features, Updates, Docs.

@@ -61,8 +61,8 @@ CSRF_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = [
     "https://narolims.reslab.dev",
     "https://www.narolims.reslab.dev",
-    "http://narolims.reslab.dev",
 ]
+CSRF_COOKIE_SAMESITE = "Lax"
 
 
 # ===============================================================

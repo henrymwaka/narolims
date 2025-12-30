@@ -11,55 +11,63 @@ This module is PURE LOGIC + DATA.
 - No Django imports
 - Safe to import at startup
 - Must align EXACTLY with workflow rules
+- UI and API must consume computed SLA status, not raw rules
 """
-
 
 # ===============================================================
 # SLA DEFINITIONS
 # ===============================================================
+# Semantics:
+# - warn_after   : duration after which SLA enters WARNING
+# - breach_after : duration after which SLA is BREACHED
+# - severity     : semantic weight used by metrics / alerts
+#
+# If a state is absent or value is None → no SLA applies
+# ===============================================================
 
-SLA_DEFINITIONS: Dict[str, Dict[str, Dict[str, Any]]] = {
+SLA_DEFINITIONS: Dict[str, Dict[str, Optional[Dict[str, Any]]]] = {
+
     # -----------------------------------------------------------
     # SAMPLE WORKFLOW SLA
     # -----------------------------------------------------------
     "sample": {
-        # Initial registration should not sit idle too long
         "REGISTERED": {
-            "max_age": timedelta(hours=24),
+            "warn_after": timedelta(hours=12),
+            "breach_after": timedelta(hours=24),
             "severity": "warning",
         },
 
-        # Active lab processing is time-critical
         "IN_PROCESS": {
-            "max_age": timedelta(days=3),
+            "warn_after": timedelta(days=2),
+            "breach_after": timedelta(days=3),
             "severity": "critical",
         },
 
-        # Optional: QC_PENDING SLA (uncomment if required)
-        # "QC_PENDING": {
-        #     "max_age": timedelta(days=2),
-        #     "severity": "warning",
-        # },
+        # Terminal or non-critical states
+        "APPROVED": None,
+        "ARCHIVED": None,
+        "REJECTED": None,
     },
 
     # -----------------------------------------------------------
     # EXPERIMENT WORKFLOW SLA
     # -----------------------------------------------------------
     "experiment": {
-        # Planning should not stall indefinitely
         "PLANNED": {
-            "max_age": timedelta(days=2),
+            "warn_after": timedelta(days=1),
+            "breach_after": timedelta(days=2),
             "severity": "warning",
         },
 
-        # Running experiments are high priority
         "RUNNING": {
-            "max_age": timedelta(days=7),
+            "warn_after": timedelta(days=5),
+            "breach_after": timedelta(days=7),
             "severity": "critical",
         },
+
+        "COMPLETED": None,
     },
 }
-
 
 # ===============================================================
 # PUBLIC API
@@ -70,12 +78,13 @@ def get_sla(kind: str, state: str) -> Optional[Dict[str, Any]]:
     Return SLA definition for a workflow kind + state.
 
     Args:
-        kind: "sample" | "experiment"
+        kind: workflow kind (case-insensitive)
         state: workflow status (case-insensitive)
 
     Returns:
         dict with keys:
-          - max_age (timedelta)
+          - warn_after (timedelta)
+          - breach_after (timedelta)
           - severity (str)
         or None if no SLA applies
     """

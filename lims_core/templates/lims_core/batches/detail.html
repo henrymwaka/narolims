@@ -1,0 +1,38 @@
+{% extends "lims_core/base.html" %}
+
+{% block title %}Batch {{ batch.batch_code }}{% endblock %}
+{% block page_title %}Batch {{ batch.batch_code }}{% endblock %}
+
+{% block content %}
+
+<div class="section">
+  <table class="meta">
+    <tr><th>Project</th><td>{{ batch.project.name }}</td></tr>
+    <tr><th>Laboratory</th><td>{{ batch.laboratory }}</td></tr>
+    <tr><th>Collected At</th><td>{{ batch.collected_at }}</td></tr>
+    <tr><th>Collected By</th><td>{{ batch.collected_by }}</td></tr>
+    <tr><th>Site</th><td>{{ batch.collection_site }}</td></tr>
+    <tr><th>Client</th><td>{{ batch.client_name }}</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>Samples</h3>
+
+  <a class="inline-link" href="/lims/ui/batches/{{ batch.id }}/samples/bulk/">
+    Register samples in bulk
+  </a>
+
+  <ul>
+    {% for s in samples %}
+      <li>
+        <a href="/lims/ui/samples/{{ s.id }}/">{{ s.sample_id }}</a>
+        · {{ s.sample_type }}
+      </li>
+    {% empty %}
+      <li class="muted">No samples yet</li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% endblock %}

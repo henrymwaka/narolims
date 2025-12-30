@@ -125,3 +125,53 @@ Run these every time:
 - Post-logout redirect: ________________________
 - Owner: ________________________
 - Date: ________________________
+# Next Actions: NARO LIMS UI
+
+## Objective
+Move from functional internal pages to a product-grade LIMS experience with a consistent wide layout and a clear separation of public pages vs authenticated workspace UI.
+
+## Immediate priorities (today)
+1. Validate routing
+   - Confirm `/lims/` loads landing page
+   - Confirm `/lims/features/`, `/lims/updates/`, `/lims/docs/` load without authentication
+   - Confirm `/lims/ui/` requires login and loads workspace
+2. Confirm logout flow
+   - `/lims/ui/logout/?next=/lims/` logs out and returns to landing
+   - No 405 responses
+   - Logout appears once in topbar
+3. Confirm nav integrity
+   - Landing menu works
+   - Workspace menu works
+   - Admin button shown only for staff
+
+## Short term UI upgrades (next 48 hours)
+1. Replace inline CSS blocks in templates with a shared CSS file
+   - Create `lims_core/static/lims_core/css/public.css` for public pages
+   - Create `lims_core/static/lims_core/css/app.css` for workspace UI
+2. Add “Updates” parsing
+   - Convert markdown sections into styled HTML blocks (optional)
+   - Add “Latest changes” snippet on landing page
+3. Add a “System status widget” to landing
+   - Fetch `/lims/health/` and display status badge
+4. Add “Feature availability status”
+   - Active, Beta, Admin-first, Next
+   - Keep in a single feature registry dict to avoid template drift
+
+## Medium term (wide layout like omics.reslab.dev)
+1. Create a layout contract
+   - Fixed max width for content sections
+   - Wide hero, readable typography
+   - Consistent card and grid spacing
+2. Split base templates explicitly
+   - Keep `base_public.html` as public theme
+   - Keep `base.html` as workspace theme
+3. Build a workspace home that feels like a control room
+   - Lab selection drop-down (if multiple labs)
+   - KPI panels
+   - Recent events and alerts feed
+   - Quick actions aligned to real lab tasks
+
+## Risks and checks
+- Avoid DB queries in public views to prevent accidental 500s during migrations or first-run states.
+- Avoid hardcoding DRF logout links; keep logout routed through `/lims/ui/logout/`.
+- Keep navigation paths canonical and consistent to prevent duplicate menu entries.

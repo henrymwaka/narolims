@@ -1,21 +1,178 @@
 {% extends "lims_core/base.html" %}
 {% load static %}
 
+{% block title %}Experiment {{ experiment.code }}{% endblock %}
+{% block page_title %}Experiment {{ experiment.code }}{% endblock %}
+
+{% block page_meta %}
+  <span class="muted">
+    Project: {{ experiment.project }}
+    {% if experiment.laboratory %}
+      · Lab: {{ experiment.laboratory }}
+    {% endif %}
+  </span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .section {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #fff;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+
+  .section h3 {
+    margin: 0;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: #374151;
+  }
+
+  table.meta {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  table.meta th {
+    text-align: left;
+    width: 220px;
+    color: #6b7280;
+    font-weight: 600;
+    padding: 6px 0;
+    vertical-align: top;
+  }
+
+  table.meta td {
+    padding: 6px 0;
+    color: #111827;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    font-weight: 700;
+    font-size: 12px;
+    background: #fff;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .badge-ok {
+    background: #e6f4ea;
+    color: #137333;
+    border-color: #b7dfc2;
+  }
+
+  .badge-warn {
+    background: #fff4e5;
+    color: #b06000;
+    border-color: #f0d7a6;
+  }
+
+  .badge-error {
+    background: #fdecea;
+    color: #b00020;
+    border-color: #f3b7c0;
+  }
+
+  .muted {
+    color: #6b7280;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 
-<h2>Experiment {{ object.code }}</h2>
+<!-- ===================================================== -->
+<!-- EXPERIMENT IDENTITY -->
+<!-- ===================================================== -->
+<div class="section">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <h3>Experiment Identity</h3>
 
-<table>
-  <tr><th>Status</th><td>{{ object.status }}</td></tr>
-  <tr><th>Project</th><td>{{ object.project }}</td></tr>
-  <tr><th>Created</th><td>{{ object.created_at }}</td></tr>
-</table>
+    <div style="display:flex;gap:8px;align-items:center;">
+      {% if metadata_status %}
+        {% if metadata_status.complete %}
+          <span class="badge badge-ok">Metadata complete</span>
+        {% elif metadata_status.invalid > 0 %}
+          <span class="badge badge-error">
+            {{ metadata_status.invalid }} invalid
+          </span>
+        {% else %}
+          <span class="badge badge-warn">
+            {{ metadata_status.missing }} missing
+          </span>
+        {% endif %}
+      {% endif %}
 
-<hr>
+      <a
+        href="{% url 'lims_core:metadata-form' 'experiment' experiment.id %}"
+        class="btn btn-outline-primary"
+        style="font-size:12px;padding:4px 10px;"
+      >
+        Edit metadata
+      </a>
+    </div>
+  </div>
 
-{% include "lims_core/workflow_widget.html" with
-    workflow_kind="experiment"
-    workflow_object_id=object.id
-%}
+  <table class="meta" style="margin-top:10px;">
+    <tr>
+      <th>Experiment Code</th>
+      <td>{{ experiment.code }}</td>
+    </tr>
+
+    <tr>
+      <th>Status</th>
+      <td>
+        <span class="pill">{{ experiment.status }}</span>
+      </td>
+    </tr>
+
+    <tr>
+      <th>Project</th>
+      <td>{{ experiment.project }}</td>
+    </tr>
+
+    <tr>
+      <th>Laboratory</th>
+      <td>{{ experiment.laboratory|default:"Not assigned" }}</td>
+    </tr>
+
+    <tr>
+      <th>Created</th>
+      <td>{{ experiment.created_at }}</td>
+    </tr>
+
+    <tr>
+      <th>Last Updated</th>
+      <td>{{ experiment.updated_at }}</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ===================================================== -->
+<!-- WORKFLOW -->
+<!-- ===================================================== -->
+<div class="section">
+  <h3>Workflow</h3>
+
+  {% include "lims_core/workflow_widget.html"
+     with workflow_kind="experiment"
+          workflow_object_id=experiment.id %}
+</div>
 
 {% endblock %}

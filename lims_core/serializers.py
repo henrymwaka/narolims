@@ -19,6 +19,7 @@ from .models import (
 )
 
 from .workflows import allowed_next_states
+from lims_core.metadata.binder import bind_schema_if_missing
 
 
 # ===============================================================
@@ -35,7 +36,9 @@ class ImmutableFieldsMixin:
         if self.instance is not None and self.immutable_fields:
             for field in self.immutable_fields:
                 if field in attrs:
-                    raise serializers.ValidationError({field: "This field is immutable."})
+                    raise serializers.ValidationError(
+                        {field: "This field is immutable."}
+                    )
         return super().validate(attrs)
 
 
@@ -172,7 +175,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 # ===============================================================
-# Sample (status must be writable for workflow tests)
+# Sample
 # ===============================================================
 
 class SampleSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
@@ -182,7 +185,6 @@ class SampleSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
 
     allowed_next_states = serializers.SerializerMethodField()
 
-    # project immutable, but status must be writable (workflow enforcement happens in view)
     immutable_fields = ("project",)
 
     class Meta:
@@ -210,12 +212,23 @@ class SampleSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
             "updated_at",
         )
 
+    def create(self, validated_data):
+        sample = super().create(validated_data)
+
+        bind_schema_if_missing(
+            obj=sample,
+            object_type="sample",
+        )
+        sample.save(update_fields=["metadata_schema"])
+
+        return sample
+
     def get_allowed_next_states(self, obj: Sample) -> List[str]:
         return allowed_next_states("sample", obj.status)
 
 
 # ===============================================================
-# Experiment (status must be writable for workflow tests)
+# Experiment
 # ===============================================================
 
 class ExperimentSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
@@ -250,6 +263,17 @@ class ExperimentSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+    def create(self, validated_data):
+        experiment = super().create(validated_data)
+
+        bind_schema_if_missing(
+            obj=experiment,
+            object_type="experiment",
+        )
+        experiment.save(update_fields=["metadata_schema"])
+
+        return experiment
 
     def get_allowed_next_states(self, obj: Experiment) -> List[str]:
         return allowed_next_states("experiment", obj.status)

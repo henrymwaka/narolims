@@ -1,0 +1,164 @@
+/* lims_core/static/lims_core/css/reslab_components.css
+   ResLab SaaS components (v2)
+*/
+
+/* Cards */
+.card, .page-card, .section{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadowSm);
+}
+
+.page-card{
+  overflow: hidden;
+}
+
+/* Headings */
+h1, h2, h3, h4{
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.muted{ color: var(--muted); }
+
+/* Pills */
+.pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--pillBg);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Badges */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  line-height: 1;
+}
+.badge-ok{
+  background: var(--successSoft);
+  border-color: rgba(22,163,74,0.25);
+  color: #065f46;
+}
+.badge-warn{
+  background: var(--warningSoft);
+  border-color: rgba(245,158,11,0.30);
+  color: #92400e;
+}
+.badge-error{
+  background: var(--dangerSoft);
+  border-color: rgba(239,68,68,0.25);
+  color: #991b1b;
+}
+
+/* Buttons */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--tFast), box-shadow var(--tFast), background var(--tFast), border-color var(--tFast), color var(--tFast);
+  user-select: none;
+  text-decoration: none;
+}
+
+.btn.primary{
+  background: linear-gradient(180deg, var(--brand) 0%, var(--brand2) 100%);
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(47,107,255,0.22);
+}
+.btn.primary:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(47,107,255,0.26);
+  text-decoration: none;
+}
+
+.btn.ghost{
+  background: rgba(255,255,255,0.70);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn.ghost:hover{
+  background: #fff;
+  border-color: rgba(47,107,255,0.30);
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+
+/* Inputs */
+input, select, textarea{
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+}
+
+input[type="text"], input[type="search"], input[type="number"], select, textarea{
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  outline: none;
+  transition: box-shadow var(--tFast), border-color var(--tFast), background var(--tFast);
+}
+
+input[type="text"]:focus, input[type="search"]:focus, input[type="number"]:focus, select:focus, textarea:focus{
+  border-color: rgba(47,107,255,0.45);
+  box-shadow: 0 0 0 4px var(--brandRing);
+  background: #fff;
+}
+
+::placeholder{
+  color: rgba(91,107,132,0.85);
+}
+
+/* Tables */
+.table, table.meta{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--border2);
+  background: #fff;
+}
+
+.table th, .table td, table.meta th, table.meta td{
+  padding: 10px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
+}
+
+.table th, table.meta th{
+  background: rgba(47,107,255,0.06);
+  color: #3b4a62;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.table tr:hover td{
+  background: var(--wash2);
+}
+
+table.meta th{
+  width: 240px;
+}

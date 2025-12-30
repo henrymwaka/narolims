@@ -1,17 +1,103 @@
 {% extends "lims_core/base.html" %}
+{% load static %}
 
-{% block title %}Sample {{ sample.code }}{% endblock %}
+{% block title %}Sample {{ sample.sample_id }}{% endblock %}
+{% block page_title %}Sample {{ sample.sample_id }}{% endblock %}
+
+{% block page_meta %}
+  <span class="muted">
+    Project: {{ sample.project.name }}
+    {% if sample.laboratory %}
+      · Lab: {{ sample.laboratory }}
+    {% endif %}
+  </span>
+{% endblock %}
+
+{% block card_title %}Sample {{ sample.sample_id }}{% endblock %}
+{% block card_meta %}
+  <span class="muted">
+    Project: {{ sample.project.name }}
+    {% if sample.laboratory %}
+      · Lab: {{ sample.laboratory }}
+    {% endif %}
+  </span>
+{% endblock %}
 
 {% block content %}
-<h2>Sample {{ sample.code }}</h2>
 
-<p><strong>Current status:</strong> {{ sample.status }}</p>
+<!-- SAMPLE IDENTITY -->
+<div class="section card pad">
+  <div class="row between center gap-10">
+    <h3>Sample Identity</h3>
 
-<hr>
+    <div class="row center gap-10 wrap">
+      {% if metadata_status is not None %}
+        {% if metadata_status.complete %}
+          <span class="badge badge-ok">Metadata complete</span>
+        {% elif metadata_status.invalid > 0 %}
+          <span class="badge badge-error">{{ metadata_status.invalid }} invalid</span>
+        {% else %}
+          <span class="badge badge-warn">{{ metadata_status.missing }} missing</span>
+        {% endif %}
+      {% endif %}
 
-{% include "lims_core/workflow_widget.html" with
-    workflow_kind="sample"
-    workflow_object_id=sample.id
-%}
+      <a href="{% url 'lims_core:metadata-form' 'sample' sample.id %}" class="btn ghost">
+        Edit metadata
+      </a>
+    </div>
+  </div>
+
+  <table class="meta" style="margin-top:10px;">
+    <tr><th>Sample ID</th><td>{{ sample.sample_id }}</td></tr>
+    <tr><th>Sample Name</th><td>{{ sample.name|default:"Not specified" }}</td></tr>
+    <tr><th>Sample Type</th><td>{{ sample.sample_type|default:"Not specified" }}</td></tr>
+    <tr><th>Status</th><td><span class="pill">{{ sample.status }}</span></td></tr>
+    <tr><th>Project</th><td>{{ sample.project.name }}</td></tr>
+    <tr><th>Laboratory</th><td>{{ sample.laboratory|default:"Not assigned" }}</td></tr>
+    <tr><th>Created</th><td>{{ sample.created_at }}</td></tr>
+    <tr><th>Last Updated</th><td>{{ sample.updated_at }}</td></tr>
+  </table>
+</div>
+
+<!-- COLLECTION / BATCH -->
+<div class="section card pad">
+  <h3>Collection & Batch</h3>
+
+  {% if sample.batch %}
+    <table class="meta">
+      <tr>
+        <th>Batch Code</th>
+        <td>
+          <a class="inline-link" href="/lims/ui/batches/{{ sample.batch.id }}/">
+            {{ sample.batch.batch_code }}
+          </a>
+        </td>
+      </tr>
+      <tr><th>Collected At</th><td>{{ sample.batch.collected_at|default:"Not recorded" }}</td></tr>
+      <tr><th>Collected By</th><td>{{ sample.batch.collected_by|default:"Not recorded" }}</td></tr>
+      <tr><th>Collection Site</th><td>{{ sample.batch.collection_site|default:"Not recorded" }}</td></tr>
+      <tr><th>Client</th><td>{{ sample.batch.client_name|default:"Internal / not specified" }}</td></tr>
+      <tr><th>Batch Notes</th><td>{{ sample.batch.notes|default:"None" }}</td></tr>
+    </table>
+  {% else %}
+    <div class="muted">This sample is not associated with a collection batch.</div>
+  {% endif %}
+</div>
+
+<!-- WORKFLOW & SLA -->
+<div class="section card pad">
+  <h3>Workflow & SLA</h3>
+
+  {% if sla %}
+    <p>
+      <strong>SLA:</strong>
+      <span class="sla-pill sla-{{ sla.status }}">{{ sla.status|upper }}</span>
+    </p>
+  {% else %}
+    <p class="muted">No SLA defined for this state.</p>
+  {% endif %}
+
+  {% include "lims_core/workflow_widget.html" with workflow_kind="sample" workflow_object_id=sample.id %}
+</div>
 
 {% endblock %}

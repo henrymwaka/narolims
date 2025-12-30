@@ -1,0 +1,154 @@
+{% extends "lims_core/base.html" %}
+{% load static %}
+
+{% block title %}Metadata{% endblock %}
+{% block page_title %}Metadata Entry{% endblock %}
+{% block page_meta %}
+Schema-driven metadata for {{ object_type|title }} #{{ object.id }}
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% for schema in schemas %}
+      {% with schema_errors=errors|default:{} %}
+      {% with section_errors=schema_errors|dictsort %}
+      <section class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+          <h3 style="margin:0;">
+            {{ schema.name }}
+            {% if not schema.is_active %}
+              <span class="badge badge-warning">Inactive</span>
+            {% endif %}
+          </h3>
+          {% if schema.description %}
+            <p class="muted" style="margin-top:4px;">
+              {{ schema.description }}
+            </p>
+          {% endif %}
+        </div>
+
+        <div class="card-body">
+
+          {% if errors and errors[schema.code] %}
+            <div class="alert alert-danger">
+              This section has validation errors.
+            </div>
+          {% endif %}
+
+          {% for field in schema.fields.all %}
+            {% with field_code=field.code %}
+            {% with field_value=values[field_code] %}
+            <div class="form-group" style="margin-bottom:14px;">
+
+              <label for="{{ field_code }}">
+                {{ field.label }}
+                {% if field.required %}
+                  <span style="color:#c62828;">*</span>
+                {% endif %}
+              </label>
+
+              {% if field.field_type == "text" %}
+                <input
+                  type="text"
+                  name="{{ field_code }}"
+                  id="{{ field_code }}"
+                  class="form-control"
+                  value="{{ field_value|default_if_none:'' }}"
+                >
+
+              {% elif field.field_type == "number" %}
+                <input
+                  type="number"
+                  step="any"
+                  name="{{ field_code }}"
+                  id="{{ field_code }}"
+                  class="form-control"
+                  value="{{ field_value|default_if_none:'' }}"
+                >
+
+              {% elif field.field_type == "date" %}
+                <input
+                  type="date"
+                  name="{{ field_code }}"
+                  id="{{ field_code }}"
+                  class="form-control"
+                  value="{{ field_value|date:'Y-m-d' }}"
+                >
+
+              {% elif field.field_type == "boolean" %}
+                <select
+                  name="{{ field_code }}"
+                  id="{{ field_code }}"
+                  class="form-control"
+                >
+                  <option value="">---</option>
+                  <option value="true" {% if field_value == True %}selected{% endif %}>Yes</option>
+                  <option value="false" {% if field_value == False %}selected{% endif %}>No</option>
+                </select>
+
+              {% elif field.field_type == "choice" %}
+                <select
+                  name="{{ field_code }}"
+                  id="{{ field_code }}"
+                  class="form-control"
+                >
+                  <option value="">---</option>
+                  {% for opt in field.choices.split(",") %}
+                    {% with opt_trim=opt|trim %}
+                      <option
+                        value="{{ opt_trim }}"
+                        {% if field_value == opt_trim %}selected{% endif %}
+                      >
+                        {{ opt_trim }}
+                      </option>
+                    {% endwith %}
+                  {% endfor %}
+                </select>
+              {% endif %}
+
+              {% if field.help_text %}
+                <small class="muted">
+                  {{ field.help_text }}
+                </small>
+              {% endif %}
+
+              {% if errors and errors[schema.code] %}
+                {% if field_code in errors[schema.code].missing %}
+                  <div class="error-text">
+                    This field is required.
+                  </div>
+                {% endif %}
+                {% if field_code in errors[schema.code].invalid %}
+                  <div class="error-text">
+                    Invalid value.
+                  </div>
+                {% endif %}
+              {% endif %}
+
+            </div>
+            {% endwith %}
+            {% endwith %}
+          {% endfor %}
+        </div>
+      </section>
+      {% endwith %}
+      {% endwith %}
+    {% endfor %}
+
+    <div style="margin-top:20px;">
+      <button type="submit" class="btn btn-primary">
+        Save Metadata
+      </button>
+      <a href="javascript:history.back()" class="btn btn-secondary">
+        Cancel
+      </a>
+    </div>
+
+  </form>
+
+</div>
+{% endblock %}

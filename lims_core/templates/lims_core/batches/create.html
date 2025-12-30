@@ -1,0 +1,66 @@
+{% extends "lims_core/base.html" %}
+
+{% block title %}Create Sample Batch{% endblock %}
+{% block page_title %}Create Sample Batch{% endblock %}
+
+{% block content %}
+<form method="post" class="section">
+  {% csrf_token %}
+
+  <table class="meta">
+    <tr>
+      <th>Laboratory</th>
+      <td>
+        <select name="laboratory" required>
+          {% for lab in laboratories %}
+            <option value="{{ lab.id }}">{{ lab }}</option>
+          {% endfor %}
+        </select>
+      </td>
+    </tr>
+
+    <tr>
+      <th>Project</th>
+      <td>
+        <select name="project" required>
+          {% for p in projects %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </td>
+    </tr>
+
+    <tr>
+      <th>Batch Code</th>
+      <td><input name="batch_code" required></td>
+    </tr>
+
+    <tr>
+      <th>Collected At</th>
+      <td><input type="datetime-local" name="collected_at"></td>
+    </tr>
+
+    <tr>
+      <th>Collected By</th>
+      <td><input name="collected_by"></td>
+    </tr>
+
+    <tr>
+      <th>Collection Site</th>
+      <td><input name="collection_site"></td>
+    </tr>
+
+    <tr>
+      <th>Client</th>
+      <td><input name="client_name"></td>
+    </tr>
+
+    <tr>
+      <th>Notes</th>
+      <td><textarea name="notes"></textarea></td>
+    </tr>
+  </table>
+
+  <button class="btn">Create Batch</button>
+</form>
+{% endblock %}

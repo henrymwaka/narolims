@@ -251,3 +251,6 @@ Revisions require:
 ---
 
 **End of Charter – Version 1.0**
+## UI Governance
+
+- [UI and Template Contract](docs/NARO-LIMS_UI_and_Template_Contract.md)

@@ -1,0 +1,385 @@
+/* lims_core/static/lims_core/css/reslab_overrides.css */
+
+/* ==========================================================
+   0) Light content readability baseline
+   ========================================================== */
+
+body {
+  color: var(--text, #0f172a);
+}
+
+.main,
+.content,
+.page-card,
+.page-head,
+.page-body,
+.card,
+.section,
+table,
+th,
+td,
+label,
+input,
+select,
+textarea {
+  color: var(--text, #0f172a);
+}
+
+/* Muted text (light area) */
+.muted,
+.page-meta,
+.crumb span {
+  color: var(--muted, #64748b);
+}
+
+/* Links in light area */
+a {
+  color: var(--brand, #1d4ed8);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================
+   1) Sidebar is dark. Scope dark palette to sidebar only
+   ========================================================== */
+
+.sidebar,
+.drawer .sidebar {
+  color: var(--sideText, #e2e8f0);
+}
+
+.sidebar a,
+.drawer .sidebar a {
+  color: var(--sideText, #e2e8f0);
+  text-decoration: none;
+}
+
+.sidebar a:hover,
+.drawer .sidebar a:hover {
+  text-decoration: none;
+}
+
+.sidebar .muted,
+.drawer .sidebar .muted,
+.sidebar .meta,
+.drawer .sidebar .meta {
+  color: var(--sideMuted, rgba(226,232,240,.78));
+}
+
+/* Buttons inside sidebar keep the dark look */
+.sidebar .btn,
+.drawer .sidebar .btn {
+  color: var(--sideText, #e2e8f0);
+}
+
+/* ==========================================================
+   2) Pills, tags, badges must remain readable on white cards
+   ========================================================== */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--pillBg, #f8fafc);
+  color: var(--text, #0f172a);
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.sidebar .pill,
+.drawer .sidebar .pill {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.14);
+  color: var(--sideText, #e2e8f0);
+}
+
+.badge,
+.status-pill,
+.sla-pill,
+.qtag {
+  color: var(--text, #0f172a);
+}
+
+/* Common badge variants */
+.badge-ok,
+.status-ok {
+  background: rgba(16,185,129,.12);
+  border: 1px solid rgba(16,185,129,.25);
+  color: #065f46;
+}
+
+.badge-warn,
+.status-warn {
+  background: rgba(245,158,11,.14);
+  border: 1px solid rgba(245,158,11,.30);
+  color: #92400e;
+}
+
+.badge-error,
+.status-error {
+  background: rgba(239,68,68,.12);
+  border: 1px solid rgba(239,68,68,.25);
+  color: #991b1b;
+}
+
+.status-loading {
+  background: rgba(59,130,246,.10);
+  border: 1px solid rgba(59,130,246,.22);
+  color: #1e3a8a;
+}
+
+/* ==========================================================
+   3) Tables readability inside cards
+   ========================================================== */
+
+.table,
+table.meta {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+table.meta th {
+  color: var(--muted, #64748b);
+}
+
+table.meta td {
+  color: var(--text, #0f172a);
+}
+
+/* ==========================================================
+   4) Workflow widget should never inherit sidebar text
+   ========================================================== */
+
+.workflow-widget {
+  color: var(--text, #0f172a);
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 12px);
+  box-shadow: var(--shadowSm, 0 1px 2px rgba(2,6,23,.06));
+  padding: 14px;
+}
+
+.workflow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.workflow-subtitle {
+  font-size: 12px;
+}
+
+.workflow-actions label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+  margin-bottom: 6px;
+}
+
+.workflow-action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.workflow-error {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(239,68,68,.25);
+  background: rgba(239,68,68,.10);
+  color: #991b1b;
+}
+
+.workflow-timeline {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, #e2e8f0);
+}
+
+.workflow-timeline [data-wf-timeline] {
+  font-size: 13px;
+  color: var(--text, #0f172a);
+}
+
+/* ==========================================================
+   5) Homepage menu item visibility (Samples | Batches | etc)
+   Fix white text on pale pill background
+   ========================================================== */
+
+/* Any non-primary btn inside main content must have dark text */
+.main a.btn:not(.primary):not(.btn-primary):not([data-variant="primary"]),
+.main button.btn:not(.primary):not(.btn-primary):not([data-variant="primary"]) {
+  color: var(--text, #0f172a);
+  background: rgba(255,255,255,.72);
+  border: 1px solid var(--border, #e2e8f0);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+}
+
+.main a.btn:not(.primary):not(.btn-primary):hover,
+.main button.btn:not(.primary):not(.btn-primary):hover {
+  color: var(--text, #0f172a);
+  background: rgba(255,255,255,.92);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+/* Keep true primary buttons white text */
+.main a.btn.primary,
+.main a.btn.btn-primary,
+.main button.btn.primary,
+.main button.btn.btn-primary {
+  color: #fff;
+}
+
+/* If homepage uses pill-like nav that isn't .btn */
+.main .pill-btn,
+.main .tab-pill,
+.main .hero-tabs a {
+  color: var(--text, #0f172a);
+}
+
+/* ==========================================================
+   6) Misc: links and chips on light cards
+   ========================================================== */
+
+.page-card a,
+.page-card a:visited,
+.page-card .inline-link {
+  color: var(--brand, #1d4ed8);
+}
+
+/* Ghost/outline buttons inside light content must not inherit dark styles */
+.main .btn.ghost,
+.main .btn.outline,
+.main .btn.btn-ghost,
+.main .btn.btn-outline {
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  color: var(--text, #0f172a);
+}
+
+.main .btn.ghost:hover,
+.main .btn.outline:hover,
+.main .btn.btn-ghost:hover,
+.main .btn.btn-outline:hover {
+  background: var(--wash, rgba(15, 23, 42, 0.03));
+  border-color: rgba(59, 130, 246, 0.35);
+  color: var(--text, #0f172a);
+}
+
+/* Quick start links sometimes get muted too hard */
+.main .dash-card a,
+.main .page-body a {
+  color: var(--brand, #1d4ed8);
+}
+.main .dash-card a:hover,
+.main .page-body a:hover {
+  text-decoration: underline;
+}
+
+/* Topbar chip text should always be readable */
+.topbar .qtag {
+  color: var(--text, #0f172a);
+}
+
+/* Input placeholder visibility */
+.topbar input::placeholder {
+  color: rgba(100, 116, 139, 0.9);
+}
+
+/* ==========================================================
+   5B) Homepage pill tabs: force readable text on light pills
+   Works even if components set .btn { color:#fff }
+   ========================================================== */
+
+/* Tabs/pills inside the home hero area or any card header area */
+.main .page-card a.btn,
+.main .page-card button.btn {
+  color: var(--text, #0f172a);
+}
+
+/* Non-primary pills must never be white text */
+.main .page-card a.btn:not(.primary):not(.btn-primary):not([data-variant="primary"]),
+.main .page-card button.btn:not(.primary):not(.btn-primary):not([data-variant="primary"]) {
+  color: var(--text, #0f172a) !important;
+}
+
+/* Keep real primary buttons white text */
+.main .page-card a.btn.primary,
+.main .page-card a.btn.btn-primary,
+.main .page-card button.btn.primary,
+.main .page-card button.btn.btn-primary {
+  color: #fff !important;
+}
+
+/* If those tabs are not .btn but plain links inside a pill container */
+.main .page-card .pill a,
+.main .page-card .tabs a,
+.main .page-card .menu a {
+  color: var(--text, #0f172a) !important;
+}
+
+/* Hard safety: never allow white text on light content cards */
+.main .page-card,
+.main .page-card *{
+  color: inherit;
+}
+/* ===== Final SaaS polish (global) ===== */
+
+/* Links in light content */
+.main a { color: var(--brand, #2563eb); }
+.main a:hover { text-decoration: underline; }
+
+/* Ensure any pill/tab-like links in cards are readable */
+.page-card a.pill, .page-card .pill a,
+.page-card .tabs a, .page-card .tab a,
+.page-card .nav a, .page-card .menu a {
+  color: var(--text, #0b1220);
+}
+
+/* Button consistency in light area */
+.main .btn,
+.page-card .btn {
+  border: 1px solid var(--border, #e6e9f0);
+  background: #fff;
+  color: var(--text, #0b1220);
+  box-shadow: 0 8px 18px rgba(16,24,40,.06);
+}
+.main .btn:hover,
+.page-card .btn:hover {
+  background: rgba(15,23,42,.03);
+  border-color: rgba(37,99,235,.35);
+}
+
+/* Primary buttons keep gradient */
+.main .btn.primary,
+.page-card .btn.primary {
+  background: linear-gradient(135deg, rgba(37,99,235,.95), rgba(14,165,233,.92));
+  color: #fff;
+  border-color: rgba(255,255,255,.16);
+}
+.main .btn.primary:hover,
+.page-card .btn.primary:hover {
+  filter: brightness(1.02);
+}
+
+/* Focus rings (keyboard + accessibility) */
+:where(a, button, input, select, textarea):focus-visible{
+  outline: 3px solid rgba(37,99,235,.25);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+
+/* Table header contrast */
+table th { color: var(--muted, #5b6576); }

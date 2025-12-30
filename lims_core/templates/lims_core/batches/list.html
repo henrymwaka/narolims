@@ -1,0 +1,80 @@
+{% extends "lims_core/base.html" %}
+{% load static %}
+
+{% block title %}Sample Batches{% endblock %}
+{% block page_title %}Sample Batches{% endblock %}
+
+{% block page_meta %}
+  <span class="muted">
+    Collection and submission events for laboratory samples
+  </span>
+{% endblock %}
+
+{% block content %}
+
+<div class="section">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <h3 style="margin:0;">Batches</h3>
+
+    <a class="btn" href="/lims/ui/batches/create/">
+      + New Batch
+    </a>
+  </div>
+
+  <table class="meta">
+    <thead>
+      <tr>
+        <th>Batch Code</th>
+        <th>Project</th>
+        <th>Laboratory</th>
+        <th>Collected At</th>
+        <th>Samples</th>
+        <th></th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for b in batches %}
+        <tr>
+          <td>
+            <strong>{{ b.batch_code }}</strong>
+          </td>
+
+          <td>
+            {{ b.project.name }}
+          </td>
+
+          <td>
+            {{ b.laboratory }}
+          </td>
+
+          <td>
+            {% if b.collected_at %}
+              {{ b.collected_at }}
+            {% else %}
+              <span class="muted">Not recorded</span>
+            {% endif %}
+          </td>
+
+          <td>
+            {{ b.sample_count }}
+          </td>
+
+          <td>
+            <a class="inline-link" href="/lims/ui/batches/{{ b.id }}/">
+              open
+            </a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="6" class="muted">
+            No sample batches have been created yet.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

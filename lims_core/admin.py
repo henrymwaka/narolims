@@ -1,4 +1,5 @@
 # lims_core/admin.py
+
 from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
@@ -16,6 +17,15 @@ from .models import (
     WorkflowTransition,
     WorkflowAlert,
 )
+
+from .labs.models import LaboratoryProfile
+
+# Metadata schema models
+from .metadata.models import (
+    MetadataSchema,
+    MetadataField,
+)
+
 
 # =============================================================
 # Workflow transitions (READ-ONLY AUDIT LOG)
@@ -57,7 +67,7 @@ class WorkflowTransitionAdmin(admin.ModelAdmin):
 
 
 # =============================================================
-# Workflow SLA alerts (READ-ONLY, WITH SEVERITY)
+# Workflow SLA alerts (READ-ONLY)
 # =============================================================
 
 @admin.register(WorkflowAlert)
@@ -73,14 +83,8 @@ class WorkflowAlertAdmin(admin.ModelAdmin):
         "resolved_at",
         "created_by",
     )
-    list_filter = (
-        "kind",
-        "state",
-    )
-    search_fields = (
-        "object_id",
-        "state",
-    )
+    list_filter = ("kind", "state")
+    search_fields = ("object_id", "state")
     ordering = ("-triggered_at",)
 
     readonly_fields = [f.name for f in WorkflowAlert._meta.fields]
@@ -103,19 +107,15 @@ class WorkflowAlertAdmin(admin.ModelAdmin):
         seconds = obj.sla_seconds or 0
 
         if seconds >= 72 * 3600:
-            color = "#c62828"
-            label = "CRITICAL"
-        elif seconds >= 24 * 3600:
-            color = "#ed6c02"
-            label = "WARNING"
-        else:
-            color = "#f9a825"
-            label = "MINOR"
-
+            return format_html(
+                '<span style="color:#c62828;font-weight:bold;">CRITICAL</span>'
+            )
+        if seconds >= 24 * 3600:
+            return format_html(
+                '<span style="color:#ed6c02;font-weight:bold;">WARNING</span>'
+            )
         return format_html(
-            '<span style="color:{};font-weight:bold;">{}</span>',
-            color,
-            label,
+            '<span style="color:#f9a825;font-weight:bold;">MINOR</span>'
         )
 
     severity_badge.short_description = "Severity"
@@ -141,6 +141,151 @@ class LaboratoryAdmin(admin.ModelAdmin):
     list_display = ("code", "name", "institute", "is_active")
     search_fields = ("code", "name")
     list_filter = ("institute", "is_active")
+
+
+# =============================================================
+# Laboratory Profile (CONFIGURATION LAYER)
+# =============================================================
+
+@admin.register(LaboratoryProfile)
+class LaboratoryProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        "laboratory",
+        "lab_type",
+        "is_active",
+        "updated_at",
+    )
+
+    list_filter = (
+        "lab_type",
+        "is_active",
+    )
+
+    search_fields = (
+        "laboratory__code",
+        "laboratory__name",
+        "lab_type",
+    )
+
+    autocomplete_fields = ("laboratory",)
+
+    fieldsets = (
+        (
+            "Laboratory",
+            {
+                "fields": (
+                    "laboratory",
+                    "is_active",
+                ),
+            },
+        ),
+        (
+            "Classification",
+            {
+                "fields": (
+                    "lab_type",
+                    "description",
+                ),
+            },
+        ),
+        (
+            "Audit",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                ),
+            },
+        ),
+    )
+
+    readonly_fields = ("created_at", "updated_at")
+
+
+# =============================================================
+# Metadata Schemas
+# =============================================================
+
+class MetadataFieldInline(admin.TabularInline):
+    model = MetadataField
+    extra = 0
+    ordering = ("order",)
+    fields = (
+        "order",
+        "code",
+        "label",
+        "field_type",
+        "required",
+        "choices",
+        "help_text",
+    )
+
+
+@admin.register(MetadataSchema)
+class MetadataSchemaAdmin(admin.ModelAdmin):
+    list_display = (
+        "code",
+        "name",
+        "applies_to",
+        "laboratory_profile",
+        "version",
+        "is_active",
+        "created_at",
+    )
+
+    list_filter = (
+        "applies_to",
+        "laboratory_profile",
+        "is_active",
+    )
+
+    search_fields = (
+        "code",
+        "name",
+        "laboratory_profile__laboratory__name",
+        "laboratory_profile__laboratory__code",
+    )
+
+    autocomplete_fields = ("laboratory_profile",)
+
+    inlines = (MetadataFieldInline,)
+
+    fieldsets = (
+        (
+            "Schema Identity",
+            {
+                "fields": (
+                    "laboratory_profile",
+                    "code",
+                    "name",
+                    "description",
+                ),
+            },
+        ),
+        (
+            "Scope and Versioning",
+            {
+                "fields": (
+                    "applies_to",
+                    "version",
+                    "is_active",
+                ),
+            },
+        ),
+        (
+            "Audit",
+            {
+                "fields": (
+                    "created_at",
+                ),
+            },
+        ),
+    )
+
+    readonly_fields = ("created_at",)
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
 
 
 # =============================================================
@@ -200,7 +345,6 @@ class SampleAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("laboratory", "project")
 
-    # Make all fields read-only on the object page (prevents edits via admin UI)
     readonly_fields = [f.name for f in Sample._meta.fields]
 
     def workflow_links(self, obj):
@@ -220,7 +364,6 @@ class SampleAdmin(admin.ModelAdmin):
 
     workflow_links.short_description = "Workflow"
 
-    # Block all write ops from admin
     def has_add_permission(self, request):
         return False
 

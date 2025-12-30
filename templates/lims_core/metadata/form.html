@@ -1,0 +1,30 @@
+{% extends "lims_core/base.html" %}
+
+{% block page_title %}
+Metadata — {{ object_type|title }} {{ object.pk }}
+{% endblock %}
+
+{% block content %}
+
+{% for schema in schemas %}
+  <section class="section">
+    <h3>{{ schema.name }}</h3>
+    {% if schema.description %}
+      <p class="muted">{{ schema.description }}</p>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+
+      {% for field in schema.fields.all %}
+        {% include "lims_core/metadata/field_"|add:field.field_type|add:".html" %}
+      {% endfor %}
+
+      <button type="submit">Save Metadata</button>
+    </form>
+  </section>
+{% empty %}
+  <p class="muted">No metadata configured for this laboratory.</p>
+{% endfor %}
+
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "lims_core/base.html" %}
+
+{% block title %}Bulk Register Samples{% endblock %}
+{% block page_title %}Bulk Register Samples for {{ batch.batch_code }}{% endblock %}
+
+{% block content %}
+<form method="post">
+  {% csrf_token %}
+
+  <table class="samples">
+    <thead>
+      <tr>
+        <th>Sample ID</th>
+        <th>Name</th>
+        <th>Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in "123456789"|make_list %}
+      <tr>
+        <td><input name="sample_id"></td>
+        <td><input name="name"></td>
+        <td><input name="sample_type"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <button class="btn">Register Samples</button>
+</form>
+{% endblock %}

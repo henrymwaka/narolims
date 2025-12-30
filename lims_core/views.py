@@ -43,6 +43,9 @@ from .workflows import (
     normalize_role,
 )
 
+# STEP 14: metadata schema binder
+from lims_core.metadata.binder import bind_schema_if_missing
+
 
 # ===============================================================
 # Utilities
@@ -56,11 +59,6 @@ def _model_has_field(model, field_name: str) -> bool:
 
 
 def _parse_pk(value) -> Optional[str]:
-    """
-    Parse a primary key passed in query params or headers.
-
-    Supports integer PKs and UUID/string PKs.
-    """
     if value is None:
         return None
     v = str(value).strip()
@@ -91,18 +89,6 @@ def _require_auth(request):
 # Laboratory resolution + Role resolution
 # ===============================================================
 def resolve_current_laboratory(request) -> Optional[Laboratory]:
-    """
-    Resolve current laboratory from ?lab=<pk> or X-Laboratory header, and verify
-    that the user is permitted to operate in that lab.
-
-    Permission signals supported (in order):
-      1) UserRole(user, laboratory) exists (primary / canonical)
-      2) StaffMember(user, laboratory) exists (common in LIMS designs)
-      3) User is in any Django Group (role encoded via groups in some setups)
-
-    If no lab is provided, and the user has exactly one lab via UserRole,
-    return it. Otherwise None.
-    """
     user = getattr(request, "user", None)
     if not user or not user.is_authenticated:
         return None
@@ -125,19 +111,11 @@ def resolve_current_laboratory(request) -> Optional[Laboratory]:
         if UserRole.objects.filter(user=user, laboratory=lab).exists():
             return lab
 
-        # Fallback: StaffMember association
-        try:
-            if StaffMember.objects.filter(user=user, laboratory=lab).exists():
-                return lab
-        except Exception:
-            pass
+        if StaffMember.objects.filter(user=user, laboratory=lab).exists():
+            return lab
 
-        # Fallback: group-based access (role derived later)
-        try:
-            if user.groups.exists():
-                return lab
-        except Exception:
-            pass
+        if user.groups.exists():
+            return lab
 
         return None
 
@@ -157,27 +135,15 @@ def require_laboratory(request) -> Laboratory:
 
 
 def _get_user_role(user, lab: Laboratory) -> str:
-    """
-    Return a normalized role string for the user in the given lab.
-
-    Role sources (in order):
-      1) UserRole(user, laboratory).role (primary)
-      2) StaffMember(user, laboratory).role (if such a field exists)
-      3) First Django group name (deterministic by name order)
-
-    If none exist, deny.
-    """
     if user.is_superuser:
         return "ADMIN"
 
-    # 1) Primary: UserRole
     try:
         role = UserRole.objects.get(user=user, laboratory=lab)
         return normalize_role(role.role)
     except UserRole.DoesNotExist:
         pass
 
-    # 2) StaffMember role field (optional)
     try:
         sm = StaffMember.objects.get(user=user, laboratory=lab)
         if getattr(sm, "role", None):
@@ -185,16 +151,12 @@ def _get_user_role(user, lab: Laboratory) -> str:
     except Exception:
         pass
 
-    # 3) Group name
-    try:
-        if user.groups.exists():
-            gname = (
-                user.groups.order_by("name").values_list("name", flat=True).first()
-            )
-            if gname:
-                return normalize_role(gname)
-    except Exception:
-        pass
+    if user.groups.exists():
+        gname = (
+            user.groups.order_by("name").values_list("name", flat=True).first()
+        )
+        if gname:
+            return normalize_role(gname)
 
     raise PermissionDenied("User has no role in this laboratory.")
 
@@ -282,7 +244,6 @@ class StaffMemberViewSet(viewsets.ModelViewSet):
             is_active=True, user_roles__user=user
         ).distinct()
         if not user_labs.exists():
-            # Fallback: StaffMember based membership
             user_labs = Laboratory.objects.filter(
                 is_active=True, staffmember__user=user
             ).distinct()
@@ -298,17 +259,13 @@ class StaffMemberViewSet(viewsets.ModelViewSet):
         ).order_by("full_name", "id")
 
     def update(self, request, *args, **kwargs):
-        if "institute" in (request.data or {}) or "laboratory" in (request.data or {}):
-            raise PermissionDenied(
-                "Institute or laboratory cannot be changed once created."
-            )
+        if "institute" in request.data or "laboratory" in request.data:
+            raise PermissionDenied("Institute or laboratory cannot be changed.")
         return super().update(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
-        if "institute" in (request.data or {}) or "laboratory" in (request.data or {}):
-            raise PermissionDenied(
-                "Institute or laboratory cannot be changed once created."
-            )
+        if "institute" in request.data or "laboratory" in request.data:
+            raise PermissionDenied("Institute or laboratory cannot be changed.")
         return super().partial_update(request, *args, **kwargs)
 
 
@@ -340,7 +297,7 @@ class ProjectViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSe
 
 
 # ===============================================================
-# Samples (canonical lifecycle enforced)
+# Samples
 # ===============================================================
 class SampleViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSet):
     queryset = Sample.objects.select_related("project").all()
@@ -349,6 +306,12 @@ class SampleViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSet
 
     def get_queryset(self):
         return _apply_default_ordering(self.get_scoped_queryset(super().get_queryset()))
+
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        bind_schema_if_missing(obj=obj, object_type="sample")
+        if obj.metadata_schema_id:
+            obj.save(update_fields=["metadata_schema"])
 
     def perform_update(self, serializer):
         incoming = self.request.data or {}
@@ -361,10 +324,7 @@ class SampleViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSet
             old = (serializer.instance.status or "").strip().upper()
             new = str(incoming["status"]).strip().upper()
 
-            try:
-                validate_transition_with_role("sample", old, new, role)
-            except ValueError as e:
-                raise ValidationError({"status": str(e)})
+            validate_transition_with_role("sample", old, new, role)
 
             WorkflowEvent.objects.create(
                 kind="sample",
@@ -384,7 +344,7 @@ class SampleViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSet
 
 
 # ===============================================================
-# Experiments (canonical lifecycle enforced)
+# Experiments
 # ===============================================================
 class ExperimentViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelViewSet):
     queryset = Experiment.objects.select_related("project").all()
@@ -393,6 +353,12 @@ class ExperimentViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelVie
 
     def get_queryset(self):
         return _apply_default_ordering(self.get_scoped_queryset(super().get_queryset()))
+
+    def perform_create(self, serializer):
+        obj = serializer.save()
+        bind_schema_if_missing(obj=obj, object_type="experiment")
+        if obj.metadata_schema_id:
+            obj.save(update_fields=["metadata_schema"])
 
     def perform_update(self, serializer):
         incoming = self.request.data or {}
@@ -405,10 +371,7 @@ class ExperimentViewSet(LabScopedQuerysetMixin, AuditLogMixin, viewsets.ModelVie
             old = (serializer.instance.status or "").strip().upper()
             new = str(incoming["status"]).strip().upper()
 
-            try:
-                validate_transition_with_role("experiment", old, new, role)
-            except ValueError as e:
-                raise ValidationError({"status": str(e)})
+            validate_transition_with_role("experiment", old, new, role)
 
             WorkflowEvent.objects.create(
                 kind="experiment",

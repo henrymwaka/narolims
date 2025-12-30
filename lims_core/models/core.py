@@ -1,3 +1,5 @@
+# lims_core/models/core.py
+
 default_app_config = "lims_core.apps.LimsCoreConfig"
 
 from django.db import models
@@ -130,7 +132,42 @@ class Project(TimeStampedModel):
 
 
 # ============================================================
-# Sample (workflow-controlled)
+# Sample Batch
+# ============================================================
+class SampleBatch(TimeStampedModel):
+    laboratory = models.ForeignKey(
+        Laboratory,
+        on_delete=models.PROTECT,
+        related_name="sample_batches",
+    )
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.PROTECT,
+        related_name="sample_batches",
+        null=True,
+        blank=True,
+    )
+
+    batch_code = models.CharField(max_length=100, unique=True)
+    collected_at = models.DateTimeField(null=True, blank=True)
+    collected_by = models.CharField(max_length=255, blank=True)
+    collection_site = models.CharField(max_length=255, blank=True)
+    client_name = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+
+    def clean(self):
+        if self.project and self.project.laboratory_id != self.laboratory_id:
+            raise ValidationError(
+                "Batch laboratory must match project laboratory."
+            )
+
+    def __str__(self):
+        return self.batch_code
+
+
+# ============================================================
+# Sample
 # ============================================================
 class Sample(WorkflowWriteGuardMixin, TimeStampedModel):
     WORKFLOW_FIELD = "status"
@@ -142,16 +179,46 @@ class Sample(WorkflowWriteGuardMixin, TimeStampedModel):
         null=True,
         blank=True,
     )
+
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
         related_name="samples",
     )
 
-    sample_id = models.CharField(max_length=100, unique=True)
-    sample_type = models.CharField(max_length=50)
+    batch = models.ForeignKey(
+        SampleBatch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="samples",
+    )
 
-    # Initial state only, transitions via execute_transition()
+    analysis_context = models.ForeignKey(
+        "lims_core.AnalysisContext",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="samples",
+        help_text=(
+            "Optional context used to group schemas and workflows "
+            "(e.g. Soil Fertility, Food Safety)."
+        ),
+    )
+
+    metadata_schema = models.ForeignKey(
+        "lims_core.MetadataSchema",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="bound_samples",
+        help_text="Frozen metadata schema governing this sample.",
+    )
+
+    sample_id = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=255, blank=True)
+    sample_type = models.CharField(max_length=50, blank=True)
+
     status = models.CharField(
         max_length=50,
         default="REGISTERED",
@@ -161,14 +228,38 @@ class Sample(WorkflowWriteGuardMixin, TimeStampedModel):
     def clean(self):
         if self.laboratory and self.project.laboratory:
             if self.project.laboratory_id != self.laboratory_id:
-                raise ValidationError("Sample lab must match project lab.")
+                raise ValidationError(
+                    "Sample lab must match project lab."
+                )
+
+        if self.batch and self.batch.laboratory_id != self.laboratory_id:
+            raise ValidationError(
+                "Sample batch must belong to same laboratory."
+            )
+
+        if self.pk:
+            old = Sample.objects.only(
+                "status",
+                "analysis_context_id",
+                "metadata_schema_id",
+            ).get(pk=self.pk)
+
+            if old.status != "REGISTERED":
+                if old.analysis_context_id != self.analysis_context_id:
+                    raise ValidationError(
+                        "Analysis context cannot be changed after registration."
+                    )
+                if old.metadata_schema_id != self.metadata_schema_id:
+                    raise ValidationError(
+                        "Metadata schema cannot be changed after registration."
+                    )
 
     def __str__(self):
         return self.sample_id
 
 
 # ============================================================
-# Experiment (workflow-controlled)
+# Experiment
 # ============================================================
 class Experiment(WorkflowWriteGuardMixin, TimeStampedModel):
     WORKFLOW_FIELD = "status"
@@ -180,15 +271,33 @@ class Experiment(WorkflowWriteGuardMixin, TimeStampedModel):
         null=True,
         blank=True,
     )
+
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
         related_name="experiments",
     )
 
+    analysis_context = models.ForeignKey(
+        "lims_core.AnalysisContext",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="experiments",
+        help_text="Optional context for experiments and method development.",
+    )
+
+    metadata_schema = models.ForeignKey(
+        "lims_core.MetadataSchema",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="bound_experiments",
+        help_text="Frozen metadata schema governing this experiment.",
+    )
+
     name = models.CharField(max_length=255)
 
-    # Initial state only, transitions via execute_transition()
     status = models.CharField(
         max_length=50,
         default="PLANNED",
@@ -198,7 +307,26 @@ class Experiment(WorkflowWriteGuardMixin, TimeStampedModel):
     def clean(self):
         if self.laboratory and self.project.laboratory:
             if self.project.laboratory_id != self.laboratory_id:
-                raise ValidationError("Experiment lab must match project lab.")
+                raise ValidationError(
+                    "Experiment lab must match project lab."
+                )
+
+        if self.pk:
+            old = Experiment.objects.only(
+                "status",
+                "analysis_context_id",
+                "metadata_schema_id",
+            ).get(pk=self.pk)
+
+            if old.status != "PLANNED":
+                if old.analysis_context_id != self.analysis_context_id:
+                    raise ValidationError(
+                        "Analysis context cannot be changed after start."
+                    )
+                if old.metadata_schema_id != self.metadata_schema_id:
+                    raise ValidationError(
+                        "Metadata schema cannot be changed after start."
+                    )
 
     def __str__(self):
         return self.name
@@ -224,7 +352,7 @@ class InventoryItem(TimeStampedModel):
 
 
 # ============================================================
-# User Roles (lab-scoped, migration-safe)
+# User Roles
 # ============================================================
 class UserRole(TimeStampedModel):
     user = models.ForeignKey(
@@ -273,12 +401,11 @@ class AuditLog(TimeStampedModel):
 
 
 # ============================================================
-# Workflow Transition (STATUS TIMELINE)
+# Workflow Transition
 # ============================================================
 class WorkflowTransition(models.Model):
-    kind = models.CharField(max_length=32)  # sample | experiment
+    kind = models.CharField(max_length=32)
     object_id = models.PositiveIntegerField()
-
     from_status = models.CharField(max_length=50)
     to_status = models.CharField(max_length=50)
 
@@ -314,7 +441,7 @@ class WorkflowTransition(models.Model):
 
 
 # ============================================================
-# Role Map (signals-safe)
+# Role Map
 # ============================================================
 STAFF_ROLE_MAP = {
     "EMPLOYEE": {"Technician"},
