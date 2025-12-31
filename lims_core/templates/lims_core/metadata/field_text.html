@@ -1,0 +1,33 @@
+{#
+REQUIRES:
+- field
+- field_code
+- field_value
+- errors
+- schema_error
+#}
+
+<div class="form-group mb-3">
+  <label for="{{ field_code }}" class="form-label">
+    {{ field.label }}
+    {% if field.required %}<span class="text-danger">*</span>{% endif %}
+  </label>
+
+  <input
+    type="text"
+    id="{{ field_code }}"
+    name="{{ field_code }}"
+    class="form-control {% if errors or schema_error %}is-invalid{% endif %}"
+    value="{{ field_value|default:'' }}"
+  >
+
+  {% if errors %}
+    <div class="invalid-feedback d-block">
+      {{ errors|join:", " }}
+    </div>
+  {% elif schema_error %}
+    <div class="invalid-feedback d-block">
+      {{ schema_error|join:", " }}
+    </div>
+  {% endif %}
+</div>

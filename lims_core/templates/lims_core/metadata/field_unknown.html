@@ -1,0 +1,11 @@
+{#
+REQUIRES:
+- field
+#}
+
+<div class="alert alert-warning mb-3">
+  <strong>Unsupported field type</strong><br>
+  Field: <strong>{{ field.label }}</strong><br>
+  Code: <code>{{ field.code }}</code><br>
+  Type: <code>{{ field.field_type }}</code>
+</div>

@@ -10,7 +10,7 @@ class LaboratoryProfile(models.Model):
     - One profile per Laboratory
     - Binds the lab to metadata schemas
     - Drives UI rendering, validation, and workflow gating
-    - Provides default analysis context for cross-matrix labs
+    - Controls accreditation enforcement behavior
     """
 
     laboratory = models.OneToOneField(
@@ -33,9 +33,21 @@ class LaboratoryProfile(models.Model):
     )
 
     # --------------------------------------------------
+    # Accreditation governance (OPTION C)
+    # --------------------------------------------------
+    accreditation_mode = models.BooleanField(
+        default=False,
+        help_text=(
+            "If enabled, the laboratory operates in accreditation mode. "
+            "Only LOCKED metadata schemas may be used at runtime. "
+            "Edits require schema revision cloning."
+        ),
+    )
+
+    # --------------------------------------------------
     # Metadata schema binding (LAB DEFAULT)
     # --------------------------------------------------
-    # Used when no analysis context–specific schema applies
+    # Used when no analysis-context-specific schema applies
     schema_code = models.CharField(
         max_length=64,
         help_text="Logical default schema identifier, e.g. INTAKE_CORE",
@@ -48,7 +60,7 @@ class LaboratoryProfile(models.Model):
     )
 
     # --------------------------------------------------
-    # NEW: Default analysis context (minimal change)
+    # Default analysis context (optional)
     # --------------------------------------------------
     default_analysis_context = models.ForeignKey(
         "lims_core.AnalysisContext",
@@ -74,11 +86,17 @@ class LaboratoryProfile(models.Model):
         verbose_name = "Laboratory Profile"
         verbose_name_plural = "Laboratory Profiles"
         ordering = ["laboratory__code"]
+        indexes = [
+            models.Index(fields=["accreditation_mode"]),
+            models.Index(fields=["lab_type"]),
+        ]
 
     def __str__(self):
+        acc = "ACCREDITED" if self.accreditation_mode else "NON-ACCREDITED"
         return (
             f"{self.laboratory.code} | "
             f"{self.lab_type} | "
+            f"{acc} | "
             f"{self.schema_code}:{self.schema_version}"
         )
 

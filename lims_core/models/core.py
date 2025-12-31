@@ -11,6 +11,84 @@ from lims_core.workflows.guards import WorkflowWriteGuardMixin
 
 
 # ============================================================
+# Metadata schema freezing (C3)
+# ============================================================
+
+def _get_laboratory_for_obj(obj):
+    """
+    Best-effort lab resolution.
+    We prefer obj.laboratory, otherwise use project.laboratory.
+    """
+    lab = getattr(obj, "laboratory", None)
+    if lab:
+        return lab
+    project = getattr(obj, "project", None)
+    if project and getattr(project, "laboratory", None):
+        return project.laboratory
+    return None
+
+
+def _get_profile_for_laboratory(lab):
+    """
+    Returns LaboratoryProfile or None.
+    """
+    if not lab:
+        return None
+    return getattr(lab, "profile", None)
+
+
+def _get_effective_analysis_context(obj, profile):
+    """
+    Prefer explicit object analysis_context, else profile default.
+    """
+    ctx = getattr(obj, "analysis_context", None)
+    if ctx is not None:
+        return ctx
+    if profile is not None:
+        return getattr(profile, "default_analysis_context", None)
+    return None
+
+
+def _freeze_metadata_schema_if_missing(*, obj, applies_to: str):
+    """
+    Freeze metadata_schema once, on first save, if missing.
+    Uses Option C policy through resolve_metadata_schema():
+      - accreditation_mode True -> locked-only
+      - accreditation_mode False -> latest active (locked or unlocked)
+    """
+    if getattr(obj, "metadata_schema_id", None):
+        return
+
+    lab = _get_laboratory_for_obj(obj)
+    profile = _get_profile_for_laboratory(lab)
+
+    # If we cannot resolve a profile yet, do not hard-fail here.
+    # Workflow gating can still enforce completeness later.
+    if profile is None:
+        return
+
+    analysis_context = _get_effective_analysis_context(obj, profile)
+
+    # Import locally to avoid circular imports at module import time
+    from lims_core.metadata.schema_resolver import resolve_metadata_schema
+
+    try:
+        schema = resolve_metadata_schema(
+            laboratory_profile=profile,
+            applies_to=applies_to,
+            analysis_context=analysis_context,
+        )
+    except Exception as exc:
+        raise ValidationError(
+            f"Unable to resolve metadata schema for {applies_to}. "
+            f"Check LaboratoryProfile schema configuration and accreditation mode. "
+            f"Reason: {exc}"
+        )
+
+    obj.metadata_schema = schema
+
+
+# ============================================================
 # Base
 # ============================================================
 class TimeStampedModel(models.Model):
@@ -225,6 +303,12 @@ class Sample(WorkflowWriteGuardMixin, TimeStampedModel):
         editable=False,
     )
 
+    def save(self, *args, **kwargs):
+        # C3: Freeze schema once, only if missing
+        if self.pk is None:
+            _freeze_metadata_schema_if_missing(obj=self, applies_to="sample")
+        return super().save(*args, **kwargs)
+
     def clean(self):
         if self.laboratory and self.project.laboratory:
             if self.project.laboratory_id != self.laboratory_id:
@@ -303,6 +387,12 @@ class Experiment(WorkflowWriteGuardMixin, TimeStampedModel):
         default="PLANNED",
         editable=False,
     )
+
+    def save(self, *args, **kwargs):
+        # C3: Freeze schema once, only if missing
+        if self.pk is None:
+            _freeze_metadata_schema_if_missing(obj=self, applies_to="experiment")
+        return super().save(*args, **kwargs)
 
     def clean(self):
         if self.laboratory and self.project.laboratory:

@@ -2,6 +2,8 @@
 
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 
 class MetadataSchema(models.Model):
@@ -9,9 +11,10 @@ class MetadataSchema(models.Model):
     Defines a metadata schema applied to a specific object type
     under a given laboratory profile and optional analysis context.
 
-    IMPORTANT:
-    - LaboratoryProfile and AnalysisContext live inside the lims_core app
-      (they are under lims_core/labs/ but the app label is lims_core).
+    Accreditation-aware:
+    - Schemas may be locked once approved
+    - Locked schemas must never be modified
+    - Changes require creating a new revision (superseding schema)
     """
 
     laboratory_profile = models.ForeignKey(
@@ -38,7 +41,7 @@ class MetadataSchema(models.Model):
     version = models.CharField(
         max_length=16,
         default="v1",
-        help_text="Schema version identifier",
+        help_text="Schema version identifier (e.g. v1, v2, v3)",
     )
 
     name = models.CharField(
@@ -61,6 +64,42 @@ class MetadataSchema(models.Model):
         help_text="Whether this schema is currently active",
     )
 
+    # Accreditation lock controls
+    is_locked = models.BooleanField(
+        default=False,
+        help_text="Whether this schema is locked for accreditation",
+    )
+
+    locked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when schema was locked",
+    )
+
+    locked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="locked_metadata_schemas",
+        help_text="User who locked this schema",
+    )
+
+    lock_reason = models.TextField(
+        blank=True,
+        help_text="Reason for locking (e.g. ISO approval, validation complete)",
+    )
+
+    # Revision lineage
+    supersedes = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="revisions",
+        help_text="Previous schema version this one supersedes",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -74,10 +113,30 @@ class MetadataSchema(models.Model):
             "version",
             "applies_to",
         )
+        indexes = [
+            models.Index(fields=["code"]),
+            models.Index(fields=["is_locked"]),
+            models.Index(fields=["laboratory_profile", "applies_to"]),
+        ]
 
     def __str__(self):
         ctx = self.analysis_context.code if self.analysis_context else "default"
-        return f"{self.code} ({self.version}) [{ctx}]"
+        lock = "LOCKED" if self.is_locked else "DRAFT"
+        return f"{self.code} ({self.version}) [{ctx}] [{lock}]"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            original = MetadataSchema.objects.get(pk=self.pk)
+            if original.is_locked:
+                raise ValidationError(
+                    "This metadata schema is locked and cannot be modified. "
+                    "Create a new version instead."
+                )
+
+        if self.is_locked and not self.locked_at:
+            self.locked_at = timezone.now()
+
+        super().save(*args, **kwargs)
 
 
 class MetadataField(models.Model):
@@ -145,6 +204,14 @@ class MetadataField(models.Model):
     def __str__(self):
         return f"{self.schema.code}:{self.code}"
 
+    def save(self, *args, **kwargs):
+        if self.schema.is_locked:
+            raise ValidationError(
+                "Cannot add or modify fields on a locked metadata schema. "
+                "Create a new schema version instead."
+            )
+        super().save(*args, **kwargs)
+
     def get_choices_list(self):
         if not self.choices:
             return []
@@ -154,6 +221,9 @@ class MetadataField(models.Model):
 class MetadataValue(models.Model):
     """
     Stores metadata values per object instance.
+
+    NOTE:
+    Values ARE allowed on locked schemas.
     """
 
     schema_field = models.ForeignKey(

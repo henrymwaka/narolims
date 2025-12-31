@@ -1,4 +1,3 @@
-# lims_core/serializers.py
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -19,7 +18,6 @@ from .models import (
 )
 
 from .workflows import allowed_next_states
-from lims_core.metadata.binder import bind_schema_if_missing
 
 
 # ===============================================================
@@ -213,15 +211,8 @@ class SampleSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
         )
 
     def create(self, validated_data):
-        sample = super().create(validated_data)
-
-        bind_schema_if_missing(
-            obj=sample,
-            object_type="sample",
-        )
-        sample.save(update_fields=["metadata_schema"])
-
-        return sample
+        # Schema freezing handled in Sample.save()
+        return super().create(validated_data)
 
     def get_allowed_next_states(self, obj: Sample) -> List[str]:
         return allowed_next_states("sample", obj.status)
@@ -265,15 +256,8 @@ class ExperimentSerializer(ImmutableFieldsMixin, serializers.ModelSerializer):
         )
 
     def create(self, validated_data):
-        experiment = super().create(validated_data)
-
-        bind_schema_if_missing(
-            obj=experiment,
-            object_type="experiment",
-        )
-        experiment.save(update_fields=["metadata_schema"])
-
-        return experiment
+        # Schema freezing handled in Experiment.save()
+        return super().create(validated_data)
 
     def get_allowed_next_states(self, obj: Experiment) -> List[str]:
         return allowed_next_states("experiment", obj.status)

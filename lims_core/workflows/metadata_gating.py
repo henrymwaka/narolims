@@ -2,14 +2,17 @@
 
 from typing import Dict, List
 
+from django.core.exceptions import ValidationError
+
 from lims_core.metadata.validators import validate_metadata_payload
 from lims_core.metadata.models import MetadataValue
+
 
 # ------------------------------------------------------------
 # Import-safe resolver (CRITICAL under Gunicorn)
 # ------------------------------------------------------------
 try:
-    from lims_core.metadata.resolver import resolve_metadata_schema
+    from lims_core.metadata.schema_resolver import resolve_metadata_schema
 except ImportError:
     resolve_metadata_schema = None
 
@@ -24,20 +27,24 @@ def check_metadata_gate(
     Enforce metadata completeness and validity before workflow transitions
     and for UI completeness indicators.
 
-    Returns a structured decision dict:
+    OPTION C (Accreditation-aware):
 
-    {
-        "allowed": bool,
-        "missing_fields": list[str],
-        "invalid_fields": list[str],
-        "warning": optional str
-    }
+    - accreditation_mode = True
+        * schema MUST exist
+        * schema MUST be locked
+        * missing or invalid metadata → BLOCK
 
-    This function MUST NEVER raise ImportError or crash the UI.
+    - accreditation_mode = False
+        * schema must exist
+        * missing or invalid metadata → BLOCK
+        * unlocked schema allowed
+
+    This function MUST NEVER crash the UI.
+    Workflow enforcement happens downstream based on "allowed".
     """
 
     # --------------------------------------------------------
-    # Resolver unavailable → fail OPEN (never block UI/workflow)
+    # Resolver unavailable → fail OPEN (UI-safe)
     # --------------------------------------------------------
     if resolve_metadata_schema is None:
         return {
@@ -48,13 +55,21 @@ def check_metadata_gate(
         }
 
     # --------------------------------------------------------
-    # Resolver execution must never crash UI
+    # Resolve schema safely
     # --------------------------------------------------------
     try:
-        schemas = resolve_metadata_schema(
-            laboratory=laboratory,
-            object_type=object_type,
+        schema = resolve_metadata_schema(
+            laboratory_profile=laboratory.profile,
+            applies_to=object_type,
         )
+    except ValidationError as exc:
+        # No schema found → metadata not required
+        return {
+            "allowed": True,
+            "missing_fields": [],
+            "invalid_fields": [],
+            "warning": str(exc),
+        }
     except Exception:
         return {
             "allowed": True,
@@ -63,43 +78,48 @@ def check_metadata_gate(
             "warning": "metadata schema resolver error",
         }
 
-    # No schemas defined → metadata not required
-    if not schemas:
+    # --------------------------------------------------------
+    # Accreditation hard enforcement
+    # --------------------------------------------------------
+    if laboratory.profile.accreditation_mode and not schema.is_locked:
         return {
-            "allowed": True,
+            "allowed": False,
             "missing_fields": [],
             "invalid_fields": [],
+            "warning": (
+                f"Unlocked metadata schema '{schema.code}:{schema.version}' "
+                "cannot be used in accreditation mode."
+            ),
         }
 
-    missing_fields: List[str] = []
-    invalid_fields: List[str] = []
-
-    for schema in schemas:
-        # --------------------------------------------
-        # Build payload from persisted MetadataValue
-        # --------------------------------------------
-        values = (
-            MetadataValue.objects
-            .filter(
-                schema_field__schema=schema,
-                object_type=object_type,
-                object_id=object_id,
-            )
-            .select_related("schema_field")
+    # --------------------------------------------------------
+    # Build payload from persisted MetadataValue
+    # --------------------------------------------------------
+    values = (
+        MetadataValue.objects
+        .filter(
+            schema_field__schema=schema,
+            object_type=object_type,
+            object_id=object_id,
         )
+        .select_related("schema_field")
+    )
 
-        payload = {
-            mv.schema_field.code: mv.get_value()
-            for mv in values
-        }
+    payload = {
+        mv.schema_field.code: mv.get_value()
+        for mv in values
+    }
 
-        result = validate_metadata_payload(
-            schema=schema,
-            payload=payload,
-        )
+    # --------------------------------------------------------
+    # Validate payload
+    # --------------------------------------------------------
+    result = validate_metadata_payload(
+        schema=schema,
+        payload=payload,
+    )
 
-        missing_fields.extend(result.get("missing_fields", []))
-        invalid_fields.extend(result.get("invalid_fields", []))
+    missing_fields: List[str] = result.get("missing_fields", [])
+    invalid_fields: List[str] = result.get("invalid_fields", [])
 
     return {
         "allowed": not (missing_fields or invalid_fields),
