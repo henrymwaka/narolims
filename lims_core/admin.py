@@ -1,7 +1,8 @@
 # lims_core/admin.py
 
+from django.http import HttpResponseRedirect, JsonResponse
+from django.urls import path, reverse
 from django.contrib import admin, messages
-from django.urls import reverse
 from django.utils.html import format_html
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -28,6 +29,17 @@ from .metadata.models import (
     MetadataSchema,
     MetadataField,
 )
+
+# Config packs
+from .config.models import (
+    ConfigPack,
+    LabPackAssignment,
+    SchemaPackItem,
+    WorkflowPackDefinition,
+    RolePackDefinition,
+)
+
+from .config.pack_io import pack_to_dict
 
 
 # =============================================================
@@ -147,6 +159,163 @@ class LaboratoryAdmin(admin.ModelAdmin):
 
 
 # =============================================================
+# Packs admin
+# =============================================================
+
+class SchemaPackItemInline(admin.TabularInline):
+    model = SchemaPackItem
+    extra = 0
+    fields = ("order", "schema", "is_required")
+    autocomplete_fields = ("schema",)
+
+
+class WorkflowPackDefinitionInline(admin.StackedInline):
+    model = WorkflowPackDefinition
+    extra = 0
+    fields = (
+        "object_kind",
+        "code",
+        "name",
+        "version",
+        "is_active",
+        "definition",
+        "is_locked",
+        "locked_at",
+        "locked_by",
+        "lock_reason",
+    )
+    readonly_fields = ("locked_at", "locked_by")
+
+    def has_add_permission(self, request, obj=None):
+        if obj and obj.kind != ConfigPack.KIND_WORKFLOW:
+            return False
+        return super().has_add_permission(request, obj=obj)
+
+    def has_change_permission(self, request, obj=None):
+        return super().has_change_permission(request, obj=obj)
+
+
+class RolePackDefinitionInline(admin.StackedInline):
+    model = RolePackDefinition
+    extra = 0
+    fields = ("code", "name", "version", "is_active", "definition")
+
+
+@admin.register(ConfigPack)
+class ConfigPackAdmin(admin.ModelAdmin):
+    list_display = (
+        "code",
+        "name",
+        "kind",
+        "version",
+        "publish_badge",
+        "published_at",
+        "published_by",
+        "updated_at",
+    )
+    list_filter = ("kind", "is_published")
+    search_fields = ("code", "name", "description")
+    ordering = ("kind", "code")
+
+    actions = ("publish_selected", "export_selected_json")
+
+    fieldsets = (
+        (
+            "Pack Identity",
+            {
+                "fields": (
+                    "code",
+                    "name",
+                    "kind",
+                    "version",
+                    "description",
+                ),
+            },
+        ),
+        (
+            "Publishing",
+            {
+                "fields": (
+                    "is_published",
+                    "published_at",
+                    "published_by",
+                ),
+            },
+        ),
+        (
+            "Audit",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                ),
+            },
+        ),
+    )
+
+    readonly_fields = ("published_at", "published_by", "created_at", "updated_at")
+
+    def get_inline_instances(self, request, obj=None):
+        if obj is None:
+            return []
+
+        inlines = []
+        if obj.kind == ConfigPack.KIND_SCHEMA:
+            inlines.append(SchemaPackItemInline(self.model, self.admin_site))
+        elif obj.kind == ConfigPack.KIND_WORKFLOW:
+            inlines.append(WorkflowPackDefinitionInline(self.model, self.admin_site))
+        elif obj.kind == ConfigPack.KIND_ROLE:
+            inlines.append(RolePackDefinitionInline(self.model, self.admin_site))
+        return inlines
+
+    def publish_badge(self, obj):
+        if obj.is_published:
+            return format_html('<span style="color:#2e7d32;font-weight:bold;">PUBLISHED</span>')
+        return format_html('<span style="color:#ed6c02;font-weight:bold;">DRAFT</span>')
+
+    publish_badge.short_description = "State"
+
+    def publish_selected(self, request, queryset):
+        n = 0
+        for p in queryset:
+            if p.is_published:
+                continue
+            p.publish(user=request.user)
+            p.save(update_fields=["is_published", "published_at", "published_by", "updated_at"])
+            n += 1
+        self.message_user(request, f"Published {n} pack(s).", level=messages.SUCCESS)
+
+    publish_selected.short_description = "Publish selected packs"
+
+    def export_selected_json(self, request, queryset):
+        payload = [pack_to_dict(p) for p in queryset.order_by("kind", "code")]
+        return JsonResponse(payload, safe=False)
+
+    export_selected_json.short_description = "Export selected packs as JSON"
+
+
+class LabPackAssignmentInline(admin.TabularInline):
+    model = LabPackAssignment
+    extra = 0
+    fields = ("pack", "is_enabled", "priority")
+    autocomplete_fields = ("pack",)
+    ordering = ("priority",)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("pack")
+
+
+@admin.register(LabPackAssignment)
+class LabPackAssignmentAdmin(admin.ModelAdmin):
+    list_display = ("laboratory_profile", "pack", "is_enabled", "priority", "updated_at")
+    list_filter = ("is_enabled", "pack__kind", "pack__is_published")
+    search_fields = ("laboratory_profile__laboratory__name", "pack__code", "pack__name")
+    autocomplete_fields = ("laboratory_profile", "pack")
+    ordering = ("laboratory_profile__laboratory__name", "priority")
+
+
+# =============================================================
 # Laboratory Profile (CONFIGURATION LAYER)
 # =============================================================
 
@@ -171,6 +340,8 @@ class LaboratoryProfileAdmin(admin.ModelAdmin):
     )
 
     autocomplete_fields = ("laboratory",)
+
+    inlines = (LabPackAssignmentInline,)
 
     fieldsets = (
         (
@@ -233,7 +404,7 @@ def _format_version_str(n: int) -> str:
 def _clone_schema_revision(*, schema: MetadataSchema, user, reason: str = "") -> MetadataSchema:
     """
     Creates a new editable schema revision by copying the schema + fields.
-    The source schema is expected to be locked (immutability policy B).
+    The source schema is expected to be locked.
     """
     current_n = _parse_version_str(getattr(schema, "version", "") or "v1")
     next_version = _format_version_str(current_n + 1)
@@ -271,10 +442,7 @@ def _clone_schema_revision(*, schema: MetadataSchema, user, reason: str = "") ->
     if new_fields:
         MetadataField.objects.bulk_create(new_fields)
 
-    # Lightweight audit trail in lock_reason of new schema (optional, keeps zero dependencies)
     if reason:
-        new_schema.description = (new_schema.description or "").strip()
-        # keep description untouched; store reason in lock_reason only when locking later
         _ = user
 
     return new_schema
@@ -309,7 +477,6 @@ class MetadataFieldInline(admin.TabularInline):
 
     def has_change_permission(self, request, obj=None):
         if self._schema_locked(obj):
-            # allow viewing the parent page; inline editing is blocked via readonly + save guards below
             return True
         return super().has_change_permission(request, obj=obj)
 
@@ -401,48 +568,114 @@ class MetadataSchemaAdmin(admin.ModelAdmin):
 
     readonly_fields = ("created_at", "locked_at", "locked_by", "is_locked")
 
+    change_form_template = "admin/lims_core/metadata_schema_change_form.html"
+    change_list_template = "admin/lims_core/metadataschema/change_list.html"
+
     def lock_badge(self, obj):
         if getattr(obj, "is_locked", False):
-            return format_html('<span style="color:#2e7d32;font-weight:bold;">LOCKED</span>')
-        return format_html('<span style="color:#ed6c02;font-weight:bold;">DRAFT</span>')
+            return format_html(
+                '<span class="lock-badge" data-locked="1" style="color:#2e7d32;font-weight:bold;">LOCKED</span>'
+            )
+        return format_html(
+            '<span class="lock-badge" data-locked="0" style="color:#ed6c02;font-weight:bold;">DRAFT</span>'
+        )
 
     lock_badge.short_description = "Lock"
 
     def has_delete_permission(self, request, obj=None):
-        # Never allow deleting locked schemas (history must remain)
         if obj and getattr(obj, "is_locked", False):
             return False
         return request.user.is_superuser
 
-    def has_change_permission(self, request, obj=None):
-        """
-        IMPORTANT UX: allow opening/viewing locked schemas,
-        but enforce immutability via save_model/save_formset.
-        """
-        return super().has_change_permission(request, obj=obj)
-
     def get_readonly_fields(self, request, obj=None):
         ro = set(super().get_readonly_fields(request, obj=obj) or [])
         if obj and getattr(obj, "is_locked", False):
-            # Full read-only view once locked
             model_fields = [f.name for f in obj._meta.fields]
             ro.update(model_fields)
         return tuple(ro)
 
     def save_model(self, request, obj, form, change):
         if change and obj and getattr(obj, "is_locked", False):
-            raise ValidationError("This schema is locked and cannot be modified. Create a new revision by cloning.")
+            raise ValidationError(
+                "This schema is locked and cannot be modified. Create a new revision by cloning."
+            )
         super().save_model(request, obj, form, change)
 
     def save_formset(self, request, form, formset, change):
         parent_obj = form.instance
         if parent_obj and getattr(parent_obj, "is_locked", False):
-            raise ValidationError("This schema is locked. Fields cannot be added/edited/deleted. Create a new revision by cloning.")
+            raise ValidationError(
+                "This schema is locked. Fields cannot be added, edited, or deleted."
+            )
         super().save_formset(request, form, formset, change)
 
-    # ----------------------------
-    # Admin actions (safe workflow)
-    # ----------------------------
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "<path:object_id>/create-revision/",
+                self.admin_site.admin_view(self.create_revision_view),
+                name="metadata_schema_create_revision",
+            ),
+        ]
+        return custom_urls + urls
+
+    def create_revision_view(self, request, object_id):
+        schema = self.get_object(request, object_id)
+
+        if not schema:
+            self.message_user(request, "Schema not found.", level=messages.ERROR)
+            return HttpResponseRedirect("../../")
+
+        if not schema.is_locked:
+            self.message_user(
+                request,
+                "Schema must be locked before creating a new revision.",
+                level=messages.WARNING,
+            )
+            return HttpResponseRedirect("../")
+
+        new_schema = _clone_schema_revision(
+            schema=schema,
+            user=request.user,
+            reason="Admin button revision clone",
+        )
+
+        self.message_user(
+            request,
+            f"New editable revision created: {new_schema.code} ({new_schema.version})",
+            level=messages.SUCCESS,
+        )
+
+        return HttpResponseRedirect(
+            reverse("admin:lims_core_metadataschema_change", args=[new_schema.pk])
+        )
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        selected = request.POST.getlist("_selected_action") or request.GET.getlist("_selected_action")
+        if not selected:
+            return actions
+
+        qs = MetadataSchema.objects.filter(pk__in=selected)
+
+        if "lock_selected_schemas" in actions:
+            if not qs.filter(is_locked=False).exists():
+                actions.pop("lock_selected_schemas", None)
+
+        if "create_revision_from_locked" in actions:
+            if qs.exists() and qs.filter(is_locked=False).exists():
+                actions.pop("create_revision_from_locked", None)
+
+        return actions
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        obj = None
+        if object_id:
+            obj = self.get_object(request, object_id)
+        extra_context["schema_is_locked"] = bool(obj and getattr(obj, "is_locked", False))
+        return super().changeform_view(request, object_id, form_url, extra_context)
 
     def lock_selected_schemas(self, request, queryset):
         locked = 0
@@ -482,7 +715,11 @@ class MetadataSchemaAdmin(admin.ModelAdmin):
                 _clone_schema_revision(schema=s, user=request.user, reason="Admin revision clone")
                 created += 1
             except Exception as exc:
-                self.message_user(request, f"Failed to clone {s.code} ({s.version}): {exc}", level=messages.ERROR)
+                self.message_user(
+                    request,
+                    f"Failed to clone {s.code} ({s.version}): {exc}",
+                    level=messages.ERROR,
+                )
 
         if created:
             self.message_user(request, f"Created {created} schema revision(s).", level=messages.SUCCESS)
@@ -503,12 +740,6 @@ class MetadataFieldAdmin(admin.ModelAdmin):
 
     schema_lock.short_description = "Schema"
 
-    def has_change_permission(self, request, obj=None):
-        if obj and obj.schema and getattr(obj.schema, "is_locked", False):
-            # allow viewing but block saving
-            return super().has_change_permission(request, obj=obj)
-        return super().has_change_permission(request, obj=obj)
-
     def has_delete_permission(self, request, obj=None):
         if obj and obj.schema and getattr(obj.schema, "is_locked", False):
             return False
@@ -516,7 +747,9 @@ class MetadataFieldAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         if obj and obj.schema and getattr(obj.schema, "is_locked", False):
-            raise ValidationError("This field belongs to a locked schema and cannot be modified. Create a schema revision clone.")
+            raise ValidationError(
+                "This field belongs to a locked schema and cannot be modified. Create a schema revision clone."
+            )
         super().save_model(request, obj, form, change)
 
 

@@ -2,55 +2,41 @@
 
 from __future__ import annotations
 
-from django.db import transaction
 from django.utils import timezone
-
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from lims_core.models import WorkflowTransition, UserRole, WorkflowAlert
+from lims_core.models import UserRole
 from lims_core.workflows import (
     validate_transition,
     allowed_next_states,
     required_roles,
     normalize_role,
 )
-
 from lims_core.workflows.sla_monitor import check_sla_breach
-
-
-def _resolve_open_sla_alerts(*, kind: str, object_id: int, state: str) -> int:
-    kind = (kind or "").strip().lower()
-    state = (state or "").strip().upper()
-    if not kind or not state:
-        return 0
-
-    now = timezone.now()
-
-    qs = WorkflowAlert.objects.filter(
-        kind=kind,
-        object_id=object_id,
-        state=state,
-        resolved_at__isnull=True,
-    )
-
-    updated = 0
-    for alert in qs.iterator():
-        alert.resolved_at = now
-        if alert.triggered_at:
-            delta = now - alert.triggered_at
-            alert.duration_seconds = max(0, int(delta.total_seconds()))
-        else:
-            alert.duration_seconds = 0
-        alert.save(update_fields=["resolved_at", "duration_seconds"])
-        updated += 1
-
-    return updated
+from lims_core.workflows.transition_service import transition_object
 
 
 def execute_transition(*, instance, kind: str, new_status: str, user):
+    """
+    Authoritative transition entrypoint used by UI/API code paths.
+
+    This function enforces:
+      - terminal lock
+      - transition legality
+      - role checks
+
+    It delegates persistence to transition_object(), which is the only place
+    allowed to write status and create WorkflowTransition rows, and to resolve
+    open SLA alerts for the prior state.
+    """
     kind = (kind or "").strip().lower()
     current = (getattr(instance, "status", None) or "").strip().upper()
     target = (new_status or "").strip().upper()
+
+    if not kind:
+        raise ValidationError({"status": "kind is required."})
+    if not target:
+        raise ValidationError({"status": "new_status is required."})
 
     # 1) Terminal state lock
     if not allowed_next_states(kind, current):
@@ -58,7 +44,7 @@ def execute_transition(*, instance, kind: str, new_status: str, user):
             {"status": f"{kind.capitalize()} is in terminal state '{current}' and cannot be modified."}
         )
 
-    # 2) Validate transition legality (must be field-shaped)
+    # 2) Validate transition legality
     try:
         validate_transition(kind=kind, old=current, new=target)
     except ValueError as e:
@@ -66,13 +52,26 @@ def execute_transition(*, instance, kind: str, new_status: str, user):
 
     # No-op transition
     if current == target:
-        return
+        return {
+            "changed": False,
+            "kind": kind,
+            "object_id": instance.pk,
+            "from_status": current,
+            "to_status": target,
+            "alerts_resolved": 0,
+            "transition_id": None,
+        }
 
     # 3) Role enforcement (lab-scoped)
     required = {normalize_role(r) for r in (required_roles(kind, current, target) or set())}
 
     if required:
-        if user.is_superuser:
+        if not user or not getattr(user, "is_authenticated", False):
+            raise PermissionDenied(
+                "You must be authenticated to perform this transition."
+            )
+
+        if getattr(user, "is_superuser", False):
             user_roles = {"ADMIN"}
         else:
             raw_roles = UserRole.objects.filter(
@@ -87,20 +86,17 @@ def execute_transition(*, instance, kind: str, new_status: str, user):
                 f"{kind} from {current} to {target}."
             )
 
-    # 4) Apply transition + timeline atomically
-    with transaction.atomic():
-        instance.__class__.objects.filter(pk=instance.pk).update(status=target)
-
-        WorkflowTransition.objects.create(
-            kind=kind,
-            object_id=instance.pk,
-            from_status=current,
-            to_status=target,
-            performed_by=user,
-            laboratory=instance.laboratory,
-        )
-
-        _resolve_open_sla_alerts(kind=kind, object_id=instance.pk, state=current)
+    # 4) Persist via the single authoritative writer
+    result = transition_object(
+        kind=kind,
+        object_id=instance.pk,
+        to_status=target,
+        performed_by=user if (user and getattr(user, "is_authenticated", False)) else None,
+        now=timezone.now(),
+    )
 
     # 5) SLA evaluation for current state
+    # This runs after the transition is stored so the monitor can use the new timeline.
     check_sla_breach(kind=kind, object_id=instance.pk, user=user)
+
+    return result

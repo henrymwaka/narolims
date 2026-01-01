@@ -1,0 +1,31 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block content %}
+
+  {# --------------------------------------------------------- #}
+  {# LOCKED OBJECT BANNER (non-invasive, defensive)            #}
+  {# --------------------------------------------------------- #}
+  {% if original and original.is_locked %}
+    <div class="messagelist">
+      <div class="warning">
+        <strong>{% trans "This object is LOCKED." %}</strong><br>
+        {% trans "It is read-only for accreditation and audit integrity." %}
+        {% if original.lock_reason %}
+          <br><em>{% trans "Reason:" %} {{ original.lock_reason }}</em>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  {{ block.super }}
+
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+  {% if original and original.is_locked %}
+    {# Suppress save buttons entirely when locked #}
+  {% else %}
+    {{ block.super }}
+  {% endif %}
+{% endblock %}

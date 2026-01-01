@@ -1,7 +1,6 @@
 # lims_core/workflows/sla_scanner.py
 from __future__ import annotations
 
-from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
 
@@ -15,9 +14,6 @@ from lims_core.models import (
 from lims_core.workflows.sla import get_sla
 
 
-# ------------------------------------------------------------
-# Workflow kind → model resolution
-# ------------------------------------------------------------
 KIND_MODEL = {
     "sample": Sample,
     "experiment": Experiment,
@@ -41,18 +37,36 @@ def _status_window_start(kind: str, object_id: int, status: str):
     return t.created_at if t else None
 
 
+def _created_timestamp(obj):
+    """
+    Best-effort fallback for objects that may not have a transition
+    recorded for their initial state (e.g., REGISTERED).
+    """
+    return (
+        getattr(obj, "created_at", None)
+        or getattr(obj, "created_on", None)
+        or getattr(obj, "created", None)
+    )
+
+
 def check_sla_breaches(*, now=None, created_by=None) -> int:
     """
-    Scan all workflow objects and raise SLA alerts where thresholds are exceeded.
+    Scan workflow objects and create WorkflowAlert rows when warning/breach thresholds are exceeded.
+
+    WorkflowAlert fields in your model:
+      - kind, object_id, state
+      - sla_seconds: threshold used for the alert
+      - duration_seconds: how long it has been in the state
+      - triggered_at, resolved_at, created_by
 
     Returns:
-        int: number of newly created SLA alerts
+        int: number of newly created alerts
     """
     now = now or timezone.now()
     created_count = 0
 
     for kind, model in KIND_MODEL.items():
-        qs = model.objects.select_related("laboratory").all()
+        qs = model.objects.all()
 
         for obj in qs.iterator():
             status = (getattr(obj, "status", "") or "").strip().upper()
@@ -63,53 +77,63 @@ def check_sla_breaches(*, now=None, created_by=None) -> int:
             if not sla:
                 continue
 
-            max_age = sla["max_age"]
-            severity = sla.get("severity", "warning")
+            warn_after = sla.get("warn_after")
+            breach_after = sla.get("breach_after")
 
             started_at = _status_window_start(kind, obj.pk, status)
+
+            # ------------------------------------------------------------
+            # Safe fallback: some objects may not have an initial transition
+            # row for REGISTERED. In that case, use object creation time.
+            # ------------------------------------------------------------
+            if not started_at and kind == "sample" and status == "REGISTERED":
+                started_at = _created_timestamp(obj)
+
             if not started_at:
                 continue
 
-            deadline = started_at + max_age
-            if now <= deadline:
+            elapsed = now - started_at
+            elapsed_seconds = int(elapsed.total_seconds())
+
+            threshold = None
+            if breach_after and elapsed > breach_after:
+                threshold = breach_after
+            elif warn_after and elapsed > warn_after:
+                threshold = warn_after
+            else:
                 continue
 
-            # Prevent duplicate alerts for the same breach window
+            sla_seconds = int(threshold.total_seconds()) if threshold else 0
+
             with transaction.atomic():
-                alert, created = WorkflowAlert.objects.get_or_create(
+                alert = (
+                    WorkflowAlert.objects.select_for_update()
+                    .filter(
+                        kind=kind,
+                        object_id=obj.pk,
+                        state=status,
+                        resolved_at__isnull=True,
+                    )
+                    .first()
+                )
+
+                if alert:
+                    # Keep it fresh without creating duplicates
+                    alert.duration_seconds = elapsed_seconds
+                    alert.sla_seconds = sla_seconds
+                    alert.save(update_fields=["duration_seconds", "sla_seconds"])
+                    continue
+
+                WorkflowAlert.objects.create(
                     kind=kind,
                     object_id=obj.pk,
                     state=status,
-                    defaults={
-                        "laboratory": getattr(obj, "laboratory", None),
-                        "severity": severity,
-                        "detected_at": now,
-                        "message": (
-                            f"SLA breached for {kind} {obj.pk} "
-                            f"in state {status} (>{max_age})"
-                        ),
-                        "meta": {
-                            "started_at": started_at.isoformat(),
-                            "deadline": deadline.isoformat(),
-                            "now": now.isoformat(),
-                        },
-                    },
+                    sla_seconds=sla_seconds,
+                    duration_seconds=elapsed_seconds,
+                    triggered_at=now,
+                    resolved_at=None,
+                    created_by=created_by,
                 )
-
-                if created:
-                    created_count += 1
-
-                    # --------------------------------------------------
-                    # Optional email hook (safe placeholder)
-                    # --------------------------------------------------
-                    # from django.conf import settings
-                    # from django.core.mail import send_mail
-                    #
-                    # send_mail(
-                    #     subject=f"SLA breach: {kind} {obj.pk}",
-                    #     message=alert.message,
-                    #     from_email=settings.DEFAULT_FROM_EMAIL,
-                    #     recipient_list=[...],
-                    # )
+                created_count += 1
 
     return created_count
