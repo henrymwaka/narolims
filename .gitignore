@@ -49,3 +49,6 @@ lims_core/workflows_py_unused.bak
 cookies.txt
 cookies.txt
 lims_core/management/commands/show_urls.py
+
+# Local artifacts
+_core -q

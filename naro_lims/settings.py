@@ -1,13 +1,18 @@
 """
 Django settings for naro_lims project.
-Adapted for NARO-LIMS with PostgreSQL, JWT, Cloudflare, DRF,
-workflow enforcement, audit safety, and Celery background tasks.
+
+NARO-LIMS
+- PostgreSQL
+- DRF + JWT
+- Cloudflare Tunnel -> Nginx -> Gunicorn (proxy aware)
+- Celery + django-celery-beat/results
+- Multi-lab configurable packs (workflows, schemas, roles)
 """
 
 from pathlib import Path
-from decouple import config
 from datetime import timedelta
 from celery.schedules import crontab
+from decouple import config
 import os
 
 
@@ -20,15 +25,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ===============================================================
 # Security
 # ===============================================================
-SECRET_KEY = config("SECRET_KEY", default="insecure-key-change-me")
+# Never ship an insecure default secret key in production.
+SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
 
-# ALLOWED_HOSTS is frequently overridden by .env
-# Make it resilient:
-# - strip whitespace
-# - drop empty entries
-# - convert "*.domain" to ".domain" (Django expects leading dot, not wildcard)
-# - always include "testserver" for Django test client
 _raw_hosts = config(
     "ALLOWED_HOSTS",
     default="narolims.reslab.dev,www.narolims.reslab.dev,127.0.0.1,localhost,testserver,.reslab.dev",
@@ -54,34 +54,45 @@ if "testserver" not in ALLOWED_HOSTS:
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-SECURE_SSL_REDIRECT = False
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# Avoid redirect loops because Cloudflare terminates TLS at the edge
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
+
+SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=True, cast=bool)
+CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=True, cast=bool)
 
 CSRF_TRUSTED_ORIGINS = [
     "https://narolims.reslab.dev",
     "https://www.narolims.reslab.dev",
 ]
+
 CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SAMESITE = "Lax"
 
 
 # ===============================================================
 # Installed apps
 # ===============================================================
 INSTALLED_APPS = [
+    # Django core
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # Third-party
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "django_filters",
     "drf_spectacular",
     "drf_spectacular_sidecar",
+
+    # Core app
     "lims_core.apps.LimsCoreConfig",
+
+    # Celery
     "django_celery_results",
     "django_celery_beat",
 ]
@@ -91,13 +102,16 @@ INSTALLED_APPS = [
 # Middleware
 # ===============================================================
 MIDDLEWARE = [
-    "lims_core.middleware.CurrentUserMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+
+    # Needs request.user, so keep after AuthenticationMiddleware
+    "lims_core.middleware.CurrentUserMiddleware",
+
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -144,9 +158,10 @@ else:
             "ENGINE": "django.db.backends.postgresql",
             "NAME": config("DB_NAME", default="narolims_db"),
             "USER": config("DB_USER", default="narolims_user"),
-            "PASSWORD": config("DB_PASSWORD", default="StrongPasswordHere"),
+            "PASSWORD": config("DB_PASSWORD"),
             "HOST": config("DB_HOST", default="127.0.0.1"),
             "PORT": config("DB_PORT", default="5432"),
+            "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=60, cast=int),
         }
     }
 
@@ -187,7 +202,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ===============================================================
 # CORS
 # ===============================================================
-CORS_ALLOW_ALL_ORIGINS = True
+# Keep permissive during early build-out, tighten later.
+CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=True, cast=bool)
 
 
 # ===============================================================
@@ -221,15 +237,12 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "NARO-LIMS API",
     "DESCRIPTION": "Modular Laboratory Information Management System for NARO",
-    "VERSION": "0.1.0",
+    "VERSION": config("API_VERSION", default="0.1.0"),
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "REDOC_DIST": "SIDECAR",
     "SERVERS": [
-        {
-            "url": "https://narolims.reslab.dev",
-            "description": "Production",
-        },
+        {"url": "https://narolims.reslab.dev", "description": "Production"},
     ],
 }
 
@@ -238,8 +251,8 @@ SPECTACULAR_SETTINGS = {
 # JWT
 # ===============================================================
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=config("JWT_ACCESS_MINUTES", default=30, cast=int)),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=config("JWT_REFRESH_DAYS", default=1, cast=int)),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
@@ -247,9 +260,9 @@ SIMPLE_JWT = {
 
 
 # ===============================================================
-# Celery configuration
+# Celery configuration (ISOLATED FROM OMICS)
 # ===============================================================
-CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/1"
 CELERY_RESULT_BACKEND = "django-db"
 
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -258,10 +271,50 @@ CELERY_RESULT_SERIALIZER = "json"
 
 CELERY_TIMEZONE = "Africa/Kampala"
 
+# Dedicated queue isolation
+CELERY_TASK_DEFAULT_QUEUE = "narolims"
+CELERY_TASK_DEFAULT_ROUTING_KEY = "narolims"
+
+# Route all tasks from our apps to narolims queue
+CELERY_TASK_ROUTES = {
+    "lims_core.tasks.*": {"queue": "narolims", "routing_key": "narolims"},
+}
+
 CELERY_BEAT_SCHEDULE = {
     "scan-workflow-sla-every-10-mins": {
         "task": "lims_core.tasks.scan_workflow_sla",
         "schedule": crontab(minute="*/10"),
         "args": (),
+        "options": {"queue": "narolims", "routing_key": "narolims"},
     }
+}
+
+
+# ===============================================================
+# Logging
+# ===============================================================
+LOG_DIR = config("LOG_DIR", default=str(BASE_DIR / "logs"))
+os.makedirs(LOG_DIR, exist_ok=True)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {"format": "[{asctime}] {levelname} {name}: {message}", "style": "{"},
+        "simple": {"format": "{levelname}: {message}", "style": "{"},
+    },
+    "handlers": {
+        "file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": os.path.join(LOG_DIR, "django.log"),
+            "formatter": "verbose",
+        },
+        "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+    },
+    "root": {"handlers": ["file", "console"], "level": "INFO"},
+    "loggers": {
+        "django.request": {"handlers": ["file"], "level": "WARNING", "propagate": False},
+        "celery": {"handlers": ["console"], "level": "INFO"},
+    },
 }
