@@ -159,20 +159,24 @@ class LaboratoryAdmin(admin.ModelAdmin):
     list_filter = ("institute", "is_active")
 
     # Deterministic ordering is critical for admin autocomplete pagination
-    ordering = ("code", "name", "id")
+    ordering = ("name", "id", "code")
 
     def get_queryset(self, request):
+        """
+        Enforce deterministic ordering everywhere (list view, autocomplete, changelist pagination).
+        This avoids UnorderedObjectListWarning and prevents page drift.
+        """
         qs = super().get_queryset(request)
-        return qs.order_by("code", "name", "id")
+        return qs.order_by("name", "id", "code")
 
     def get_search_results(self, request, queryset, search_term):
         """
         Admin autocomplete uses pagination. If the queryset is not ordered,
         Django raises UnorderedObjectListWarning and pagination can drift.
-        Force deterministic order.
+        Force deterministic order (name then id).
         """
         qs, use_distinct = super().get_search_results(request, queryset, search_term)
-        return qs.order_by("code", "name", "id"), use_distinct
+        return qs.order_by("name", "id", "code"), use_distinct
 
 
 # =============================================================
