@@ -270,7 +270,9 @@ class ConfigPackAdmin(admin.ModelAdmin):
 
     def publish_badge(self, obj):
         if obj.is_published:
-            return format_html('<span style="color:#2e7d32;font-weight:bold;">PUBLISHED</span>')
+            return format_html(
+                '<span style="color:#2e7d32;font-weight:bold;">PUBLISHED</span>'
+            )
         return format_html('<span style="color:#ed6c02;font-weight:bold;">DRAFT</span>')
 
     publish_badge.short_description = "State"
@@ -788,7 +790,7 @@ class ProjectAdmin(admin.ModelAdmin):
 
 
 # =============================================================
-# Sample (STRICT READ-ONLY)
+# Sample (ALLOW ADD, ENFORCE AUDIT-SAFE RULES, AUTO ASSIGN sample_id)
 # =============================================================
 
 @admin.register(Sample)
@@ -801,7 +803,7 @@ class SampleAdmin(admin.ModelAdmin):
         "project",
         "workflow_links",
     )
-    search_fields = ("sample_id",)
+    search_fields = ("sample_id", "name")
     list_filter = (
         "sample_type",
         "status",
@@ -810,7 +812,21 @@ class SampleAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("laboratory", "project")
 
-    readonly_fields = [f.name for f in Sample._meta.fields]
+    def get_readonly_fields(self, request, obj=None):
+        """
+        Allow creating samples in admin, but keep system-managed fields read-only.
+        """
+        base = [
+            "id",
+            "created_at",
+            "updated_at",
+            "sample_id",
+            "metadata_schema",
+            "analysis_context",
+        ]
+        if obj is not None:
+            base.append("status")
+        return base
 
     def workflow_links(self, obj):
         transitions_url = (
@@ -830,17 +846,34 @@ class SampleAdmin(admin.ModelAdmin):
     workflow_links.short_description = "Workflow"
 
     def has_add_permission(self, request):
-        return False
+        return request.user.is_superuser or request.user.has_perm("lims_core.add_sample")
 
     def has_change_permission(self, request, obj=None):
-        return False
+        return request.user.is_superuser or request.user.has_perm("lims_core.change_sample")
 
     def has_delete_permission(self, request, obj=None):
+        # Audit-safe default: do not allow deletes in admin
         return False
+
+    def save_model(self, request, obj, form, change):
+        """
+        Ensure sample_id is assigned for admin-created samples.
+        Uses PK-based ID for uniqueness and stability.
+        """
+        super().save_model(request, obj, form, change)
+
+        if obj and not (obj.sample_id or "").strip():
+            lab_code = getattr(getattr(obj, "laboratory", None), "code", None) or "LAB"
+            stamp = timezone.now().strftime("%Y%m%d")
+            generated = f"S-{lab_code}-{stamp}-{obj.pk:06d}"
+
+            # Avoid recursion, update directly
+            Sample.objects.filter(pk=obj.pk).update(sample_id=generated)
+            obj.sample_id = generated
 
 
 # =============================================================
-# Experiment (STRICT READ-ONLY)
+# Experiment (ALLOW ADD, CONTROL EDITING VIA READONLY FIELDS, NO DELETE)
 # =============================================================
 
 @admin.register(Experiment)
@@ -857,7 +890,18 @@ class ExperimentAdmin(admin.ModelAdmin):
     list_filter = ("status", "laboratory", "project")
     autocomplete_fields = ("laboratory", "project")
 
-    readonly_fields = [f.name for f in Experiment._meta.fields]
+    def get_readonly_fields(self, request, obj=None):
+        """
+        Allow creating experiments in admin, but keep workflow-managed status read-only after creation.
+        """
+        base = [
+            "id",
+            "created_at",
+            "updated_at",
+        ]
+        if obj is not None:
+            base.append("status")
+        return base
 
     def workflow_links(self, obj):
         transitions_url = (
@@ -877,12 +921,13 @@ class ExperimentAdmin(admin.ModelAdmin):
     workflow_links.short_description = "Workflow"
 
     def has_add_permission(self, request):
-        return False
+        return request.user.is_superuser or request.user.has_perm("lims_core.add_experiment")
 
     def has_change_permission(self, request, obj=None):
-        return False
+        return request.user.is_superuser or request.user.has_perm("lims_core.change_experiment")
 
     def has_delete_permission(self, request, obj=None):
+        # Audit-safe default: do not allow deletes in admin
         return False
 
 
