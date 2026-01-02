@@ -157,15 +157,22 @@ class LaboratoryAdmin(admin.ModelAdmin):
     list_display = ("code", "name", "institute", "is_active")
     search_fields = ("code", "name")
     list_filter = ("institute", "is_active")
-    ordering = ("name", "id")
+
+    # Deterministic ordering is critical for admin autocomplete pagination
+    ordering = ("code", "name", "id")
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.order_by("code", "name", "id")
 
     def get_search_results(self, request, queryset, search_term):
         """
-        Django admin autocomplete uses pagination. If the queryset is not ordered,
-        Django warns and pagination can be inconsistent. Force deterministic order.
+        Admin autocomplete uses pagination. If the queryset is not ordered,
+        Django raises UnorderedObjectListWarning and pagination can drift.
+        Force deterministic order.
         """
         qs, use_distinct = super().get_search_results(request, queryset, search_term)
-        return qs.order_by("name", "id"), use_distinct
+        return qs.order_by("code", "name", "id"), use_distinct
 
 
 # =============================================================
@@ -803,7 +810,13 @@ class ProjectAdmin(admin.ModelAdmin):
     list_display = ("name", "code", "laboratory", "is_active", "created_at")
     search_fields = ("name", "code")
     list_filter = ("laboratory", "is_active")
+
+    # Deterministic ordering is critical for admin autocomplete pagination
     ordering = ("-created_at", "code", "id")
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.order_by("-created_at", "code", "id")
 
     def get_search_results(self, request, queryset, search_term):
         """
