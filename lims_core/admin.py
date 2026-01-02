@@ -67,7 +67,7 @@ class WorkflowTransitionAdmin(admin.ModelAdmin):
         "object_id",
         "performed_by__username",
     )
-    ordering = ("-created_at",)
+    ordering = ("-created_at", "id")
 
     readonly_fields = [f.name for f in WorkflowTransition._meta.fields]
 
@@ -100,7 +100,7 @@ class WorkflowAlertAdmin(admin.ModelAdmin):
     )
     list_filter = ("kind", "state")
     search_fields = ("object_id", "state")
-    ordering = ("-triggered_at",)
+    ordering = ("-triggered_at", "id")
 
     readonly_fields = [f.name for f in WorkflowAlert._meta.fields]
 
@@ -145,6 +145,7 @@ class InstituteAdmin(admin.ModelAdmin):
     list_display = ("code", "name", "is_active")
     search_fields = ("code", "name")
     list_filter = ("is_active",)
+    ordering = ("name", "id")
 
 
 # =============================================================
@@ -156,6 +157,15 @@ class LaboratoryAdmin(admin.ModelAdmin):
     list_display = ("code", "name", "institute", "is_active")
     search_fields = ("code", "name")
     list_filter = ("institute", "is_active")
+    ordering = ("name", "id")
+
+    def get_search_results(self, request, queryset, search_term):
+        """
+        Django admin autocomplete uses pagination. If the queryset is not ordered,
+        Django warns and pagination can be inconsistent. Force deterministic order.
+        """
+        qs, use_distinct = super().get_search_results(request, queryset, search_term)
+        return qs.order_by("name", "id"), use_distinct
 
 
 # =============================================================
@@ -167,6 +177,7 @@ class SchemaPackItemInline(admin.TabularInline):
     extra = 0
     fields = ("order", "schema", "is_required")
     autocomplete_fields = ("schema",)
+    ordering = ("order", "id")
 
 
 class WorkflowPackDefinitionInline(admin.StackedInline):
@@ -215,7 +226,7 @@ class ConfigPackAdmin(admin.ModelAdmin):
     )
     list_filter = ("kind", "is_published")
     search_fields = ("code", "name", "description")
-    ordering = ("kind", "code")
+    ordering = ("kind", "code", "id")
 
     actions = ("publish_selected", "export_selected_json")
 
@@ -290,7 +301,7 @@ class ConfigPackAdmin(admin.ModelAdmin):
     publish_selected.short_description = "Publish selected packs"
 
     def export_selected_json(self, request, queryset):
-        payload = [pack_to_dict(p) for p in queryset.order_by("kind", "code")]
+        payload = [pack_to_dict(p) for p in queryset.order_by("kind", "code", "id")]
         return JsonResponse(payload, safe=False)
 
     export_selected_json.short_description = "Export selected packs as JSON"
@@ -301,7 +312,7 @@ class LabPackAssignmentInline(admin.TabularInline):
     extra = 0
     fields = ("pack", "is_enabled", "priority")
     autocomplete_fields = ("pack",)
-    ordering = ("priority",)
+    ordering = ("priority", "id")
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -314,7 +325,7 @@ class LabPackAssignmentAdmin(admin.ModelAdmin):
     list_filter = ("is_enabled", "pack__kind", "pack__is_published")
     search_fields = ("laboratory_profile__laboratory__name", "pack__code", "pack__name")
     autocomplete_fields = ("laboratory_profile", "pack")
-    ordering = ("laboratory_profile__laboratory__name", "priority")
+    ordering = ("laboratory_profile__laboratory__name", "priority", "id")
 
 
 # =============================================================
@@ -376,6 +387,7 @@ class LaboratoryProfileAdmin(admin.ModelAdmin):
     )
 
     readonly_fields = ("created_at", "updated_at")
+    ordering = ("laboratory__name", "id")
 
 
 # =============================================================
@@ -453,7 +465,7 @@ def _clone_schema_revision(*, schema: MetadataSchema, user, reason: str = "") ->
 class MetadataFieldInline(admin.TabularInline):
     model = MetadataField
     extra = 0
-    ordering = ("order",)
+    ordering = ("order", "id")
     fields = (
         "order",
         "code",
@@ -522,6 +534,8 @@ class MetadataSchemaAdmin(admin.ModelAdmin):
     inlines = (MetadataFieldInline,)
 
     actions = ("lock_selected_schemas", "create_revision_from_locked")
+
+    ordering = ("code", "version", "-created_at", "id")
 
     fieldsets = (
         (
@@ -734,6 +748,7 @@ class MetadataFieldAdmin(admin.ModelAdmin):
     list_display = ("schema", "code", "label", "field_type", "required", "order", "schema_lock")
     list_filter = ("field_type", "required")
     search_fields = ("code", "label", "schema__code", "schema__name")
+    ordering = ("schema__code", "order", "id")
 
     def schema_lock(self, obj):
         if obj and obj.schema and getattr(obj.schema, "is_locked", False):
@@ -776,6 +791,7 @@ class StaffMemberAdmin(admin.ModelAdmin):
         "is_active",
     )
     autocomplete_fields = ("user", "institute", "laboratory")
+    ordering = ("full_name", "id")
 
 
 # =============================================================
@@ -784,9 +800,18 @@ class StaffMemberAdmin(admin.ModelAdmin):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "laboratory", "is_active", "created_at")
-    search_fields = ("name",)
+    list_display = ("name", "code", "laboratory", "is_active", "created_at")
+    search_fields = ("name", "code")
     list_filter = ("laboratory", "is_active")
+    ordering = ("-created_at", "code", "id")
+
+    def get_search_results(self, request, queryset, search_term):
+        """
+        Fix UnorderedObjectListWarning for admin autocomplete pagination.
+        Force deterministic ordering for search results.
+        """
+        qs, use_distinct = super().get_search_results(request, queryset, search_term)
+        return qs.order_by("-created_at", "code", "id"), use_distinct
 
 
 # =============================================================
@@ -811,6 +836,7 @@ class SampleAdmin(admin.ModelAdmin):
         "project",
     )
     autocomplete_fields = ("laboratory", "project")
+    ordering = ("-created_at", "sample_id", "id")
 
     def get_readonly_fields(self, request, obj=None):
         """
@@ -852,7 +878,6 @@ class SampleAdmin(admin.ModelAdmin):
         return request.user.is_superuser or request.user.has_perm("lims_core.change_sample")
 
     def has_delete_permission(self, request, obj=None):
-        # Audit-safe default: do not allow deletes in admin
         return False
 
     def save_model(self, request, obj, form, change):
@@ -867,7 +892,6 @@ class SampleAdmin(admin.ModelAdmin):
             stamp = timezone.now().strftime("%Y%m%d")
             generated = f"S-{lab_code}-{stamp}-{obj.pk:06d}"
 
-            # Avoid recursion, update directly
             Sample.objects.filter(pk=obj.pk).update(sample_id=generated)
             obj.sample_id = generated
 
@@ -889,6 +913,7 @@ class ExperimentAdmin(admin.ModelAdmin):
     search_fields = ("name",)
     list_filter = ("status", "laboratory", "project")
     autocomplete_fields = ("laboratory", "project")
+    ordering = ("-created_at", "name", "id")
 
     def get_readonly_fields(self, request, obj=None):
         """
@@ -927,7 +952,6 @@ class ExperimentAdmin(admin.ModelAdmin):
         return request.user.is_superuser or request.user.has_perm("lims_core.change_experiment")
 
     def has_delete_permission(self, request, obj=None):
-        # Audit-safe default: do not allow deletes in admin
         return False
 
 
@@ -940,6 +964,7 @@ class InventoryItemAdmin(admin.ModelAdmin):
     list_display = ("name", "quantity", "laboratory")
     search_fields = ("name",)
     list_filter = ("laboratory",)
+    ordering = ("name", "id")
 
 
 # =============================================================
@@ -951,6 +976,7 @@ class UserRoleAdmin(admin.ModelAdmin):
     list_display = ("user", "role", "laboratory")
     search_fields = ("user__username", "role")
     list_filter = ("laboratory", "role")
+    ordering = ("laboratory__name", "user__username", "id")
 
 
 # =============================================================
@@ -962,6 +988,8 @@ class AuditLogAdmin(admin.ModelAdmin):
     list_display = ("created_at", "user", "action", "laboratory")
     search_fields = ("action", "user__username")
     list_filter = ("laboratory", "action")
+    ordering = ("-created_at", "id")
+
     readonly_fields = [f.name for f in AuditLog._meta.fields]
 
     def has_add_permission(self, request):
