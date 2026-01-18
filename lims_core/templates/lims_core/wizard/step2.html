@@ -1,0 +1,33 @@
+{% extends "lims_core/base.html" %}
+{% block content %}
+<div class="container" style="max-width: 980px; margin: 0 auto; padding: 24px;">
+  <h1 style="margin-bottom: 6px;">Review and apply</h1>
+  <p style="opacity: 0.8; margin-top: 0;">
+    Confirm the details below. Applying will create the project (and placeholder samples if selected).
+  </p>
+
+  {% if last_error %}
+    <div style="padding: 12px; border-radius: 12px; margin: 12px 0; border: 1px solid rgba(255,80,80,.35);">
+      <strong>Last error:</strong> {{ last_error }}
+    </div>
+  {% endif %}
+
+  <div class="card" style="padding: 18px; border-radius: 14px;">
+    <h3 style="margin-top: 0;">Draft summary</h3>
+
+    <pre style="white-space: pre-wrap; opacity: 0.9;">{{ payload|safe }}</pre>
+  </div>
+
+  <form method="post" style="margin-top: 16px;">
+    {% csrf_token %}
+    <div style="display:flex; gap:10px;">
+      <a href="{% url 'lims_core:wizard:step1' %}" class="button" style="padding: 10px 14px; border-radius: 10px;">
+        Back
+      </a>
+      <button type="submit" class="button primary" style="padding: 10px 14px; border-radius: 10px;">
+        Apply draft
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

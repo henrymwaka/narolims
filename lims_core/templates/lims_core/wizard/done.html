@@ -1,0 +1,18 @@
+{% extends "lims_core/base.html" %}
+{% block content %}
+<div class="container" style="max-width: 760px; margin: 0 auto;">
+  <h1 style="margin-bottom: 6px;">Project created</h1>
+  <p style="margin-top: 0; opacity: 0.8;">Your project is ready. Next, open it and start work.</p>
+
+  <div style="padding: 16px; border: 1px solid rgba(0,0,0,0.08); border-radius: 12px;">
+    <div><strong>Name:</strong> {{ project.name }}</div>
+    <div><strong>Code:</strong> {{ project.code }}</div>
+    <div><strong>Laboratory:</strong> {{ project.laboratory }}</div>
+  </div>
+
+  <div style="display:flex; gap:10px; margin-top: 14px;">
+    <a class="btn btn-primary" href="{% url 'lims_core:sample-list-html' %}">Go to samples</a>
+    <a class="btn btn-secondary" href="{% url 'lims_core:ui-home' %}">Back to workspace</a>
+  </div>
+</div>
+{% endblock %}

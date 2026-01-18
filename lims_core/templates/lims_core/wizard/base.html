@@ -1,0 +1,42 @@
+{% extends "lims_core/base.html" %}
+{% block content %}
+<div style="max-width: 980px; margin: 0 auto; padding: 24px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+    <div>
+      <h2 style="margin:0;">Project setup wizard</h2>
+      <div style="opacity:0.75; margin-top:6px;">
+        Assisted setup. You can abandon anytime.
+      </div>
+    </div>
+    <div>
+      <a class="button" href="{% url 'lims_project_wizard_abandon' %}" style="text-decoration:none;">
+        Abandon
+      </a>
+    </div>
+  </div>
+
+  <div style="margin-top:16px; padding:12px 14px; border:1px solid rgba(255,255,255,0.12); border-radius:10px;">
+    <div style="display:flex; justify-content:space-between; font-size: 13px; opacity:0.85;">
+      <div>Step {{ step }} of 5</div>
+      <div>Draft ID {{ draft.id }}</div>
+    </div>
+    <div style="margin-top:10px; height:10px; background:rgba(255,255,255,0.10); border-radius:999px; overflow:hidden;">
+      <div style="height:100%; width: {{ step|add:'0'|floatformat:0 }}0%; background: rgba(255,255,255,0.35);"></div>
+    </div>
+  </div>
+
+  <div style="margin-top:18px;">
+    {% if messages %}
+      {% for message in messages %}
+        <div style="margin:10px 0; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.12);">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  <div style="margin-top:10px;">
+    {% block wizard_body %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

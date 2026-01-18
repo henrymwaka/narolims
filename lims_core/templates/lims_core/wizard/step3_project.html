@@ -1,0 +1,26 @@
+{% extends "lims_core/wizard/base.html" %}
+{% block wizard_body %}
+<h3 style="margin-top:0;">Project details</h3>
+<div style="opacity:0.75; margin-bottom:12px;">
+  Laboratory: <b>{{ laboratory.name }}</b>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div style="margin:14px 0;">
+    {{ form.name.label_tag }}<br />
+    {{ form.name }}
+    {% for e in form.name.errors %}<div style="opacity:0.85;">{{ e }}</div>{% endfor %}
+  </div>
+  <div style="margin:14px 0;">
+    {{ form.description.label_tag }}<br />
+    {{ form.description }}
+    {% for e in form.description.errors %}<div style="opacity:0.85;">{{ e }}</div>{% endfor %}
+  </div>
+
+  <div style="display:flex; gap:10px;">
+    <a class="button" href="{% url 'lims_project_wizard_step' 2 %}" style="text-decoration:none;">Back</a>
+    <button type="submit" class="button">Continue</button>
+  </div>
+</form>
+{% endblock %}

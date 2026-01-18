@@ -4,66 +4,88 @@
 
 {% block extra_css %}
   .hero{
-    border-radius: var(--radius2);
+    border-radius: 24px;
     border: 1px solid rgba(255,255,255,.14);
     background:
-      radial-gradient(600px 260px at 12% 10%, rgba(124,58,237,.30), transparent 60%),
-      radial-gradient(600px 260px at 88% 0%, rgba(79,70,229,.22), transparent 60%),
-      linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
-    box-shadow: var(--shadow);
+      radial-gradient(900px 420px at 10% 0%, rgba(124,58,237,.32), transparent 60%),
+      radial-gradient(820px 420px at 90% 0%, rgba(79,70,229,.22), transparent 62%),
+      radial-gradient(760px 380px at 60% 120%, rgba(34,197,94,.14), transparent 60%),
+      linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+    box-shadow: 0 22px 60px rgba(0,0,0,.35);
     overflow: hidden;
     position: relative;
   }
   .hero-inner{
-    padding: 26px;
+    padding: 28px;
     display:grid;
-    grid-template-columns: 1.15fr .85fr;
-    gap: 18px;
+    grid-template-columns: 1.2fr .8fr;
+    gap: 16px;
     align-items: stretch;
   }
   .hero h1{
     margin:0;
-    font-size: clamp(28px, 3.2vw, 44px);
+    font-size: clamp(30px, 3.4vw, 48px);
     letter-spacing: .2px;
-    line-height: 1.08;
+    line-height: 1.05;
   }
-  .hero p{
-    margin: 12px 0 0 0;
+  .hero-lead{
+    margin-top: 12px;
     color: var(--muted);
-    max-width: 62ch;
+    max-width: 70ch;
     font-size: 14px;
   }
-  .kpis{
-    margin-top: 16px;
+  .hero-meta{
+    margin-top: 14px;
     display:flex;
     gap: 10px;
     flex-wrap: wrap;
+    align-items:center;
   }
-  .kpi{
-    padding: 10px 12px;
-    border-radius: 14px;
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 999px;
     border: 1px solid rgba(255,255,255,.12);
-    background: rgba(0,0,0,.10);
-    min-width: 160px;
+    background: rgba(0,0,0,.12);
+    font-size: 12px;
+    color: rgba(255,255,255,.88);
+    white-space: nowrap;
   }
-  .kpi strong{ display:block; font-size: 14px; }
-  .kpi span{ display:block; font-size: 12px; color: var(--muted2); margin-top: 4px; }
-
+  .dot{
+    width: 8px; height: 8px; border-radius: 99px;
+    background: rgba(255,255,255,.25);
+  }
   .hero-cta{
     margin-top: 16px;
     display:flex;
     gap: 10px;
     flex-wrap: wrap;
+    align-items:center;
+  }
+  .hero-cta .btn{
+    min-height: 40px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .hero-subcta{
+    margin-top: 10px;
+    color: var(--muted2);
+    font-size: 12px;
+    line-height: 1.35;
   }
 
   .panel{
-    border-radius: 20px;
+    border-radius: 22px;
     border: 1px solid rgba(255,255,255,.14);
     background: rgba(0,0,0,.14);
-    box-shadow: var(--shadow2);
+    box-shadow: 0 18px 45px rgba(0,0,0,.35);
     overflow:hidden;
     display:flex;
     flex-direction: column;
+    min-height: 100%;
   }
   .panel-head{
     padding: 14px 14px 12px;
@@ -78,14 +100,20 @@
     font-size: 12px;
     color: rgba(255,255,255,.90);
     letter-spacing: .2px;
+    display:flex;
+    align-items:center;
+    gap: 8px;
   }
-  .dots{ display:flex; gap: 6px; }
-  .dot{
-    width: 10px; height: 10px; border-radius: 99px;
-    background: rgba(255,255,255,.12);
-    border: 1px solid rgba(255,255,255,.10);
+  .panel-title .badge{
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    color: rgba(255,255,255,.86);
   }
   .panel-body{ padding: 14px; }
+
   .mini-grid{
     display:grid;
     grid-template-columns: 1fr;
@@ -97,7 +125,12 @@
     background: rgba(255,255,255,.06);
     padding: 12px;
   }
-  .mini-card .top{ display:flex; justify-content:space-between; gap: 10px; align-items:center; }
+  .mini-card .top{
+    display:flex;
+    justify-content:space-between;
+    gap: 10px;
+    align-items:center;
+  }
   .chip{
     font-size: 11px;
     padding: 4px 9px;
@@ -111,41 +144,22 @@
   .mini-card span{ display:block; font-size: 12px; color: var(--muted2); margin-top: 4px; }
 
   .section{
-    margin-top: 18px;
+    margin-top: 16px;
     display:grid;
     grid-template-columns: 1fr;
     gap: 14px;
   }
-
-  .grid{
-    margin-top: 14px;
-    display:grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-  }
-  .card{
-    border-radius: 18px;
-    border: 1px solid rgba(255,255,255,.14);
-    background: rgba(255,255,255,.06);
-    padding: 16px;
-    box-shadow: 0 18px 40px rgba(0,0,0,.25);
-    height: 100%;
-  }
-  .card .top{ display:flex; justify-content:space-between; gap: 10px; align-items:flex-start; }
-  .card h3{ margin:0; font-size: 16px; letter-spacing:.1px; }
-  .card p{ margin: 8px 0 0 0; font-size: 13px; color: var(--muted); }
-  .card ul{ margin: 10px 0 0 18px; color: var(--muted); font-size: 13px; }
-  .card .actions{ margin-top: 12px; display:flex; gap: 10px; flex-wrap: wrap; }
   .soft{
-    border-radius: 18px;
+    border-radius: 22px;
     border: 1px solid rgba(255,255,255,.14);
     background: rgba(255,255,255,.05);
     padding: 16px;
   }
-  .soft h2{ margin:0; font-size: 16px; }
+  .soft h2{ margin:0; font-size: 16px; letter-spacing:.1px; }
   .soft p{ margin: 8px 0 0 0; color: var(--muted); font-size: 13px; }
+
   .steps{
-    margin-top: 10px;
+    margin-top: 12px;
     display:grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
@@ -166,12 +180,37 @@
   .step strong{ display:block; margin-top: 8px; font-size: 13px; }
   .step span{ display:block; margin-top: 6px; font-size: 12px; color: var(--muted2); }
 
+  .grid{
+    margin-top: 14px;
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .card{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    padding: 16px;
+    box-shadow: 0 18px 40px rgba(0,0,0,.22);
+    height: 100%;
+  }
+  .card .top{
+    display:flex;
+    justify-content:space-between;
+    gap: 10px;
+    align-items:flex-start;
+  }
+  .card h3{ margin:0; font-size: 15px; letter-spacing:.1px; }
+  .card p{ margin: 8px 0 0 0; font-size: 13px; color: var(--muted); }
+  .card ul{ margin: 10px 0 0 18px; color: var(--muted); font-size: 13px; }
+  .card .actions{ margin-top: 12px; display:flex; gap: 10px; flex-wrap: wrap; }
+
   .cta-banner{
-    margin-top: 16px;
+    margin-top: 14px;
     border-radius: 22px;
     border: 1px solid rgba(255,255,255,.14);
     background:
-      radial-gradient(500px 220px at 10% 20%, rgba(34,197,94,.18), transparent 62%),
+      radial-gradient(520px 240px at 10% 20%, rgba(34,197,94,.18), transparent 62%),
       radial-gradient(520px 240px at 90% 10%, rgba(124,58,237,.22), transparent 62%),
       linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
     padding: 18px;
@@ -180,15 +219,21 @@
     justify-content: space-between;
     gap: 12px;
     flex-wrap: wrap;
-    box-shadow: var(--shadow2);
+    box-shadow: 0 18px 45px rgba(0,0,0,.25);
   }
   .cta-banner strong{ font-size: 14px; }
-  .cta-banner span{ display:block; margin-top: 6px; color: var(--muted); font-size: 13px; max-width: 70ch; }
+  .cta-banner span{
+    display:block;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    max-width: 70ch;
+  }
 
   @media (max-width: 980px){
     .hero-inner{ grid-template-columns: 1fr; }
-    .grid{ grid-template-columns: 1fr; }
     .steps{ grid-template-columns: 1fr; }
+    .grid{ grid-template-columns: 1fr; }
   }
 {% endblock %}
 
@@ -197,68 +242,69 @@
 <section class="hero">
   <div class="hero-inner">
     <div>
-      <h1>Operational discipline for laboratory workflows</h1>
-      <p>
-        NARO LIMS is built for traceable sample movement, role-aware transitions, and audit-ready records across NARO laboratories. It supports controlled workflow execution, laboratory scoping, and compliance-friendly oversight without slowing routine work.
-      </p>
+      <h1>Laboratory workflows, made provable</h1>
+      <div class="hero-lead">
+        A production LIMS for traceable sample movement, controlled workflow execution, and audit-ready records.
+        Designed for day-to-day bench work while keeping accountability and compliance visible.
+      </div>
 
-      <div class="kpis" aria-label="Highlights">
-        <div class="kpi">
-          <strong>Traceability</strong>
-          <span>Every step recorded, searchable, and attributable</span>
-        </div>
-        <div class="kpi">
-          <strong>Role-aware actions</strong>
-          <span>Permissions mapped to laboratory and responsibility</span>
-        </div>
-        <div class="kpi">
-          <strong>Audit readiness</strong>
-          <span>Structured events, timelines, and accountability</span>
-        </div>
+      <div class="hero-meta" aria-label="Highlights">
+        <span class="pill"><span class="dot" aria-hidden="true"></span>Traceability by default</span>
+        <span class="pill"><span class="dot" aria-hidden="true"></span>Role and lab scoping</span>
+        <span class="pill"><span class="dot" aria-hidden="true"></span>Workflow enforcement</span>
       </div>
 
       <div class="hero-cta">
         {% if user.is_authenticated %}
-          <a class="btn primary" href="/lims/ui/">Open workspace</a>
-          <a class="btn" href="/lims/ui/samples/">View samples</a>
+          <a class="btn primary" href="{% url 'lims_core:wizard:step1' %}">Start a new project</a>
+          <a class="btn" href="{% url 'lims_core:ui-home' %}">Open workspace</a>
+          <a class="btn" href="/lims/ui/samples/">Samples</a>
         {% else %}
-          <a class="btn primary" href="/api/auth/login/?next=/lims/ui/">Login to workspace</a>
+          <a class="btn primary" href="/api/auth/login/?next=/lims/wizard/">Login and start a project</a>
           <a class="btn" href="/lims/features/">Explore features</a>
         {% endif %}
         <a class="btn" href="/lims/docs/">Docs</a>
         <a class="btn" href="/lims/health/">System status</a>
       </div>
+
+      <div class="hero-subcta">
+        If you are new here, start with the wizard. It creates a project and can pre-create placeholder samples so the workspace is usable immediately.
+      </div>
     </div>
 
-    <aside class="panel" aria-label="Preview">
+    <aside class="panel" aria-label="Quick preview">
       <div class="panel-head">
-        <div class="panel-title">Workspace preview</div>
-        <div class="dots" aria-hidden="true">
-          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="panel-title">
+          Workspace flow <span class="badge">Wizard-first</span>
+        </div>
+        <div style="display:flex;gap:6px;" aria-hidden="true">
+          <div style="width:10px;height:10px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.10);"></div>
+          <div style="width:10px;height:10px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.10);"></div>
+          <div style="width:10px;height:10px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.10);"></div>
         </div>
       </div>
       <div class="panel-body">
         <div class="mini-grid">
           <div class="mini-card">
             <div class="top">
-              <strong>Sample lifecycle</strong>
-              <span class="chip">Controlled</span>
+              <strong>Create a project</strong>
+              <span class="chip">Step 1</span>
             </div>
-            <span>Transitions enforced with gates and role checks</span>
+            <span>Define the laboratory scope and project identity.</span>
           </div>
           <div class="mini-card">
             <div class="top">
-              <strong>Audit timeline</strong>
-              <span class="chip">Immutable</span>
+              <strong>Pre-create samples</strong>
+              <span class="chip">Step 2</span>
             </div>
-            <span>Event history captured for review and reporting</span>
+            <span>Optionally generate placeholders to start work immediately.</span>
           </div>
           <div class="mini-card">
             <div class="top">
-              <strong>SLA visibility</strong>
-              <span class="chip">Measured</span>
+              <strong>Operate with proof</strong>
+              <span class="chip">Daily</span>
             </div>
-            <span>Track turnaround and identify operational bottlenecks</span>
+            <span>Run workflows with audit visibility and controlled transitions.</span>
           </div>
         </div>
       </div>
@@ -270,23 +316,24 @@
   <div class="soft">
     <h2>How it works</h2>
     <p>
-      The platform is structured around controlled workflow steps, clear ownership, and consistent metadata. It is designed for real labs where accountability must be provable and operational throughput still matters.
+      The system is structured around controlled workflow states, laboratory scoping, and consistent metadata.
+      The goal is simple: throughput stays practical, and accountability stays provable.
     </p>
     <div class="steps">
       <div class="step">
         <div class="n">1</div>
-        <strong>Register</strong>
-        <span>Create samples, batches, and experiments with traceable identifiers.</span>
+        <strong>Start with a project</strong>
+        <span>Use the wizard to create a project inside the correct lab scope.</span>
       </div>
       <div class="step">
         <div class="n">2</div>
-        <strong>Execute</strong>
-        <span>Move items through workflow transitions with role and metadata enforcement.</span>
+        <strong>Register and track</strong>
+        <span>Work with samples and batches using traceable identifiers and searchable history.</span>
       </div>
       <div class="step">
         <div class="n">3</div>
-        <strong>Audit</strong>
-        <span>Review timelines, metrics, and logs for compliance and performance.</span>
+        <strong>Enforce and audit</strong>
+        <span>Transitions are role-aware, guarded by policy, and captured as a timeline.</span>
       </div>
     </div>
   </div>
@@ -296,7 +343,7 @@
   <div class="soft">
     <h2>Key capabilities</h2>
     <p>
-      Below is a quick view of what the system is designed to do well. The feature pages provide deeper detail and examples.
+      Designed to stay clear for routine users and still satisfy management and compliance review.
     </p>
 
     <div class="grid">
@@ -325,7 +372,7 @@
             <h3>Traceable sample workflows</h3>
             <span class="chip">Core</span>
           </div>
-          <p>Register, track, and review sample lifecycles with consistent IDs and history.</p>
+          <p>Register and track samples with consistent IDs and reviewable history.</p>
           <ul>
             <li>Sample registry and detail views</li>
             <li>Event timelines and audit logs</li>
@@ -342,7 +389,7 @@
             <h3>Role-aware execution</h3>
             <span class="chip">Governed</span>
           </div>
-          <p>Ensure only the right roles can perform each workflow step and action.</p>
+          <p>Actions and transitions stay scoped to the correct lab and responsibility.</p>
           <ul>
             <li>Laboratory-scoped roles</li>
             <li>Permission matrices</li>
@@ -359,7 +406,7 @@
             <h3>Audit and metrics</h3>
             <span class="chip">Accountable</span>
           </div>
-          <p>Provide provable history and performance visibility for management and compliance.</p>
+          <p>Visibility for compliance, performance monitoring, and exception handling.</p>
           <ul>
             <li>Workflow timelines</li>
             <li>Metrics endpoints</li>
@@ -377,17 +424,18 @@
 
 <section class="cta-banner" aria-label="Get started">
   <div>
-    <strong>Ready to use the workspace?</strong>
+    <strong>Start clean, stay consistent</strong>
     <span>
-      Sign in to access the authenticated UI, sample views, and workflow actions. Public pages remain available for documentation and platform overview.
+      Use the wizard to create a project first. The workspace becomes immediately usable and avoids scattered entry points.
+      Public pages remain available for documentation and overview.
     </span>
   </div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
     {% if user.is_authenticated %}
-      <a class="btn primary" href="/lims/ui/">Open workspace</a>
-      <a class="btn" href="/lims/ui/workflow-demo/">Workflow demo</a>
+      <a class="btn primary" href="{% url 'lims_core:wizard:step1' %}">Start a new project</a>
+      <a class="btn" href="{% url 'lims_core:ui-home' %}">Open workspace</a>
     {% else %}
-      <a class="btn primary" href="/api/auth/login/?next=/lims/ui/">Login</a>
+      <a class="btn primary" href="/api/auth/login/?next=/lims/wizard/">Login</a>
       <a class="btn" href="/lims/docs/">Docs</a>
     {% endif %}
   </div>

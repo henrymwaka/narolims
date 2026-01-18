@@ -14,6 +14,7 @@ from datetime import timedelta
 from celery.schedules import crontab
 from decouple import config
 import os
+import sys
 
 
 # ===============================================================
@@ -47,13 +48,19 @@ ALLOWED_HOSTS = _fixed_hosts
 if "testserver" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append("testserver")
 
+LOGIN_URL = "/api/auth/login/"
+LOGIN_REDIRECT_URL = "/lims/ui/"
+LOGOUT_REDIRECT_URL = "/"
 
 # ---------------------------------------------------------------
 # Cloudflare + Nginx + Gunicorn
 # ---------------------------------------------------------------
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-
+# HSTS (start low, increase later)
+SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=3600, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=False, cast=bool)
 # Avoid redirect loops because Cloudflare terminates TLS at the edge
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
 
@@ -68,6 +75,23 @@ CSRF_TRUSTED_ORIGINS = [
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "Lax"
 
+# ---------------------------------------------------------------
+# Test safety: disable HTTPS redirect + secure cookies during tests
+# (prevents 301 -> https://testserver/... in pytest/DRF client)
+# ---------------------------------------------------------------
+RUNNING_TESTS = (
+    "PYTEST_CURRENT_TEST" in os.environ
+    or "pytest" in sys.argv
+    or "test" in sys.argv
+    or os.environ.get("DJANGO_ENV", "").lower() in {"ci", "test"}
+)
+
+if RUNNING_TESTS:
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0
+
 
 # ===============================================================
 # Installed apps
@@ -80,7 +104,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     # Third-party
     "corsheaders",
     "rest_framework",
@@ -88,10 +111,8 @@ INSTALLED_APPS = [
     "django_filters",
     "drf_spectacular",
     "drf_spectacular_sidecar",
-
     # Core app
     "lims_core.apps.LimsCoreConfig",
-
     # Celery
     "django_celery_results",
     "django_celery_beat",
@@ -108,10 +129,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-
     # Needs request.user, so keep after AuthenticationMiddleware
     "lims_core.middleware.CurrentUserMiddleware",
-
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]

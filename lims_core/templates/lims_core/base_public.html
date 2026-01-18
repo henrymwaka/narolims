@@ -15,20 +15,33 @@
       --bg0:#070a12;
       --bg1:#0b1020;
       --bg2:#111a33;
+
       --card: rgba(255,255,255,.06);
       --card2: rgba(255,255,255,.08);
+
       --border: rgba(255,255,255,.14);
+      --border2: rgba(255,255,255,.10);
+
       --text: rgba(255,255,255,.92);
+      --text2: rgba(255,255,255,.86);
+
       --muted: rgba(232,238,252,.72);
       --muted2: rgba(232,238,252,.62);
+
       --accent: #7c3aed;
       --accent2:#4f46e5;
       --ok:#22c55e;
       --warn:#f59e0b;
+
+      --surface: rgba(255,255,255,.06);
+      --surface2: rgba(255,255,255,.04);
+
       --shadow: 0 24px 70px rgba(0,0,0,.55);
       --shadow2: 0 18px 40px rgba(0,0,0,.35);
+
       --radius: 18px;
       --radius2: 22px;
+
       --max: 1180px;
     }
 
@@ -63,7 +76,6 @@
     .shell{ min-height:100%; display:flex; flex-direction:column; }
     .wrap{ max-width: var(--max); margin:0 auto; padding: 0 16px; width:100%; }
 
-    /* Top bar */
     .topbar{
       position: sticky;
       top: 0;
@@ -156,7 +168,8 @@
       color: rgba(255,255,255,.92);
       cursor:pointer;
       white-space: nowrap;
-      transition: transform .08s ease, background .12s ease, border-color .12s ease;
+      transition: transform .08s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
+      min-height: 40px;
     }
     .btn:hover{
       background: rgba(255,255,255,.10);
@@ -170,9 +183,17 @@
     }
     .btn.primary:hover{
       background: linear-gradient(135deg, rgba(124,58,237,.98), rgba(79,70,229,.96));
+      box-shadow: 0 18px 38px rgba(79,70,229,.22);
+    }
+    .btn.ghost{
+      background: transparent;
+      border-color: rgba(255,255,255,.14);
+    }
+    .btn.ghost:hover{
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.18);
     }
 
-    /* Mobile menu */
     .hamburger{
       display:none;
       border: 1px solid rgba(255,255,255,.14);
@@ -181,6 +202,7 @@
       border-radius: 12px;
       padding: 10px 12px;
       cursor:pointer;
+      min-height: 40px;
     }
     .hamburger:active{ transform: translateY(1px); }
 
@@ -203,11 +225,9 @@
       border-color: rgba(255,255,255,.10);
     }
 
-    /* Main content */
     main{ flex:1; }
     .content{ padding: 22px 0 28px; }
 
-    /* Footer */
     footer{
       border-top: 1px solid rgba(255,255,255,.10);
       background: rgba(7,10,18,.55);
@@ -274,12 +294,14 @@
           <div class="rightbox">
             {% if user.is_authenticated %}
               <span class="pill">Signed in: {{ user.username }}</span>
+              <a class="btn primary" href="/lims/wizard/">Start project</a>
               <a class="btn" href="/lims/ui/">Workspace</a>
               <a class="btn" href="/lims/ui/samples/">Samples</a>
               <a class="btn" href="/lims/ui/logout/?next=/lims/">Logout</a>
             {% else %}
               <span class="pill">Public access</span>
-              <a class="btn primary" href="/api/auth/login/?next=/lims/ui/">Login</a>
+              <a class="btn primary" href="/api/auth/login/?next=/lims/wizard/">Start project</a>
+              <a class="btn" href="/api/auth/login/?next=/lims/ui/">Login</a>
               <a class="btn" href="/lims/features/">Explore</a>
             {% endif %}
             <button class="hamburger" type="button" aria-label="Open menu" aria-expanded="false" id="menuBtn">
@@ -298,10 +320,12 @@
           <a href="/lims/docs/">Docs</a>
           <a href="/lims/health/">Status</a>
           {% if user.is_authenticated %}
+            <a href="/lims/wizard/">Start project</a>
             <a href="/lims/ui/">Workspace</a>
             <a href="/lims/ui/samples/">Samples</a>
             <a href="/lims/ui/logout/?next=/lims/">Logout</a>
           {% else %}
+            <a href="/api/auth/login/?next=/lims/wizard/">Start project</a>
             <a href="/api/auth/login/?next=/lims/ui/">Login</a>
           {% endif %}
         </div>

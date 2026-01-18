@@ -12,6 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse, Http404, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 
 from .models.core import (
     Sample,
@@ -37,6 +38,45 @@ try:
     from .workflows.runtime_sla import compute_runtime_sla
 except Exception:
     compute_runtime_sla = None
+
+
+# ============================================================
+# UI scope helpers
+# ============================================================
+
+def _user_lab_ids(user) -> list[int]:
+    return list(
+        UserRole.objects.filter(user=user)
+        .values_list("laboratory_id", flat=True)
+        .distinct()
+    )
+
+
+def _user_has_active_projects_in_scope(user, *, lab_ids: list[int] | None = None) -> bool:
+    """
+    True if the user has at least one ACTIVE project in their lab scope.
+    Uses provided lab_ids when available to avoid repeated queries.
+    """
+    if lab_ids is None:
+        lab_ids = _user_lab_ids(user)
+    if not lab_ids:
+        return False
+
+    return Project.objects.filter(
+        laboratory_id__in=lab_ids,
+        is_active=True,
+    ).exists()
+
+
+def _wizard_step1_redirect():
+    """
+    Safe redirect to wizard step 1.
+    Uses URL reversing when possible, falls back to the canonical path.
+    """
+    try:
+        return redirect(reverse("lims_core:wizard:step1"))
+    except Exception:
+        return redirect("/lims/wizard/step-1/")
 
 
 # ============================================================
@@ -144,6 +184,10 @@ def _read_repo_file(relpath: str, max_chars: int = 200_000) -> str:
 
 
 def landing(request):
+    # Logged-in users should not see marketing landing. Route into workspace entry.
+    if getattr(request, "user", None) and request.user.is_authenticated:
+        return redirect("lims_core:ui-home")
+
     return render(request, "lims_core/landing.html", {"features": FEATURES[:4]})
 
 
@@ -179,10 +223,38 @@ def ui_logout(request):
 
 @login_required
 def home(request):
+    """
+    Workspace entry point.
+
+    If there is no ACTIVE project in the user's lab scope:
+      - by default, guide them into the wizard
+      - allow override via ?skip_wizard=1
+    Also exposes wizard_first to enable an empty-state card in the workspace template.
+    """
+    lab_ids: list[int] = []
+    wizard_first = False
+
+    try:
+        lab_ids = _user_lab_ids(request.user)
+        has_active = _user_has_active_projects_in_scope(request.user, lab_ids=lab_ids)
+
+        # "wizard_first" means: user has lab scope but no active project exists yet
+        wizard_first = bool(lab_ids) and (not has_active)
+
+        if request.GET.get("skip_wizard") != "1" and wizard_first:
+            return _wizard_step1_redirect()
+
+    except Exception:
+        # Never block the user if scope logic fails
+        wizard_first = False
+
     return render(
         request,
         "lims_core/home.html",
-        {"username": getattr(request.user, "username", "")},
+        {
+            "username": getattr(request.user, "username", ""),
+            "wizard_first": wizard_first,
+        },
     )
 
 

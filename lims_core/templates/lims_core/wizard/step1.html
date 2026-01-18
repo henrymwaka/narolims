@@ -1,0 +1,127 @@
+{% extends "lims_core/wizard/base.html" %}
+
+{% block content %}
+  <div style="max-width: 860px; margin: 0 auto;">
+    <h1 style="margin-bottom: 6px;">Start a new project</h1>
+    <p style="margin-top: 0; color: var(--muted); max-width: 78ch;">
+      Guided setup. Your institute and labs are restricted to what your account is assigned to.
+    </p>
+
+    {% if inactive_warning %}
+      <div style="margin-top: 12px; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,.14); background: rgba(245,158,11,.10);">
+        <b>Note:</b> no active labs were found in your scope, so inactive labs are being shown. Ask an administrator to confirm lab activation.
+      </div>
+    {% endif %}
+
+    {% if error %}
+      <div style="margin-top: 12px; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,.14); background: rgba(239,68,68,.10);">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <form method="post" style="margin-top: 14px;">
+      {% csrf_token %}
+
+      <div style="border-radius: 18px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); padding: 14px;">
+        <h3 style="margin-top: 0;">Step 1: Project basics</h3>
+
+        <div style="display:grid; grid-template-columns: 1fr; gap: 12px;">
+
+          <div>
+            <label for="institute_id" style="display:block; font-weight: 900; font-size: 12px; margin-bottom: 6px;">Institute</label>
+            <select id="institute_id" name="institute_id" style="width:100%; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.10); color: rgba(255,255,255,.92);">
+              {% for inst in institutes %}
+                <option value="{{ inst.id }}" {% if form.institute_id|stringformat:"s" == inst.id|stringformat:"s" %}selected{% endif %}>
+                  {{ inst.name }}
+                </option>
+              {% endfor %}
+            </select>
+            <div style="margin-top: 6px; color: var(--muted2); font-size: 12px;">
+              Institute is derived from your lab assignments.
+            </div>
+          </div>
+
+          <div>
+            <label for="laboratory_id" style="display:block; font-weight: 900; font-size: 12px; margin-bottom: 6px;">Laboratory</label>
+            <select id="laboratory_id" name="laboratory_id" style="width:100%; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.10); color: rgba(255,255,255,.92);">
+              {% for lab in laboratories %}
+                <option
+                  value="{{ lab.id }}"
+                  data-institute-id="{{ lab.institute_id }}"
+                  {% if form.laboratory_id|stringformat:"s" == lab.id|stringformat:"s" %}selected{% endif %}
+                >
+                  {{ lab.name }}{% if lab.code %} ({{ lab.code }}){% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <div style="margin-top: 6px; color: var(--muted2); font-size: 12px;">
+              Only labs you are assigned to are shown.
+            </div>
+          </div>
+
+          <div>
+            <label for="project_name" style="display:block; font-weight: 900; font-size: 12px; margin-bottom: 6px;">Project name</label>
+            <input
+              id="project_name"
+              name="project_name"
+              value="{{ form.project_name }}"
+              placeholder="Example: Banana nematode screening Q1"
+              style="width:100%; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.10); color: rgba(255,255,255,.92);"
+              required
+            />
+          </div>
+
+          <div>
+            <label for="project_description" style="display:block; font-weight: 900; font-size: 12px; margin-bottom: 6px;">Description (optional)</label>
+            <textarea
+              id="project_description"
+              name="project_description"
+              rows="4"
+              style="width:100%; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.10); color: rgba(255,255,255,.92);"
+            >{{ form.project_description }}</textarea>
+          </div>
+
+        </div>
+      </div>
+
+      <div style="display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
+        <a class="btn" href="{% url 'lims_core:ui-home' %}">Back</a>
+        <button class="btn primary" type="submit">Continue to review</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function(){
+      const instituteSel = document.getElementById("institute_id");
+      const labSel = document.getElementById("laboratory_id");
+      if(!instituteSel || !labSel) return;
+
+      function applyFilter(){
+        const instId = instituteSel.value;
+        const opts = Array.from(labSel.options);
+
+        let firstVisible = null;
+        let selectedVisible = null;
+
+        opts.forEach(function(o){
+          const oInst = o.getAttribute("data-institute-id");
+          const visible = (String(oInst) === String(instId));
+          o.hidden = !visible;
+
+          if(visible && !firstVisible) firstVisible = o;
+          if(visible && o.selected) selectedVisible = o;
+        });
+
+        if(!selectedVisible && firstVisible){
+          firstVisible.selected = true;
+        }
+      }
+
+      instituteSel.addEventListener("change", applyFilter);
+      applyFilter();
+    })();
+  </script>
+{% endblock %}

@@ -1,7 +1,7 @@
 {% extends "lims_core/base.html" %}
 {% load static %}
 
-{% block title %}NARO LIMS{% endblock %}
+{% block title %}LIMS{% endblock %}
 {% block page_title %}Workspace{% endblock %}
 {% block page_meta %}Laboratory Information Management System{% endblock %}
 
@@ -15,18 +15,36 @@
 {% block content %}
 <div class="dash">
 
+  {% if wizard_first %}
+    <div style="padding:16px;border:1px solid rgba(255,255,255,.12);border-radius:14px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:700;font-size:16px;">Start new work</div>
+          <div style="opacity:.8;margin-top:2px;">
+            No active project is available in your laboratory scope. Use the wizard to create a project and optionally pre-create samples.
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <a href="{% url 'lims_core:wizard:step1' %}" class="btn primary">Start a new project</a>
+          <a href="{% url 'lims_core:wizard:step1' %}" class="btn">Create samples later</a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
   <section class="dash-hero">
     <div class="dash-hero-top">
       <div class="dash-headline">
-        <h2>National Agricultural Research Organisation Laboratory Information Management System</h2>
+        <h2>Laboratory Information Management System</h2>
         <p>
-          NARO LIMS is the operational layer for sample traceability, workflow enforcement, audit visibility, and integration-ready access.
-          Register samples, move them through controlled statuses, and preserve an evidence trail suitable for quality and compliance checks.
+          This workspace supports sample traceability, controlled workflow transitions, audit visibility, and integration-ready access.
+          Start a new project, register samples, move them through controlled statuses, and preserve an evidence trail suitable for quality and compliance checks.
         </p>
       </div>
 
       <div class="dash-actions">
-        <a class="btn primary" href="/lims/ui/samples/">Samples</a>
+        <a class="btn primary" href="{% url 'lims_core:wizard:step1' %}">Start a new project</a>
+        <a class="btn" href="/lims/ui/samples/">Samples</a>
         <a class="btn" href="/lims/ui/batches/">Batches</a>
         <a class="btn" href="/lims/ui/workflow-demo/">Workflow demo</a>
         {% if user.is_staff or user.is_superuser %}
@@ -66,17 +84,32 @@
       <div class="dash-kpis">
         <div class="dash-kpi">
           <div class="label">Samples in system</div>
-          <div id="kpiSamples" class="val">—</div>
+          <div id="kpiSamples" class="val">N/A</div>
           <div class="sub">Total registered samples</div>
         </div>
         <div class="dash-kpi">
           <div class="label">Experiments in system</div>
-          <div id="kpiExperiments" class="val">—</div>
+          <div id="kpiExperiments" class="val">N/A</div>
           <div class="sub">Total experiment records</div>
         </div>
       </div>
 
       <div class="dash-modules">
+
+        <div class="dash-mod">
+          <div class="dash-mod-top">
+            <div class="dash-mod-name">Project wizard</div>
+            <span class="dash-tag">Start here</span>
+          </div>
+          <div class="dash-mod-desc">
+            Create a project for your laboratory and optionally pre-create placeholder samples so bench work can begin immediately.
+          </div>
+          <div class="dash-mod-actions">
+            <a class="btn primary" href="{% url 'lims_core:wizard:step1' %}">Start</a>
+            <a class="btn" href="{% url 'lims_core:wizard:step1' %}">Create samples later</a>
+          </div>
+        </div>
+
         <div class="dash-mod">
           <div class="dash-mod-top">
             <div class="dash-mod-name">Samples</div>
@@ -138,7 +171,7 @@
         <h3>Recent activity</h3>
         <div class="dash-muted" style="margin-top:6px;">Latest workflow events and changes.</div>
         <ul class="dash-list" id="recentEvents">
-          <li><span class="dash-badge">Info</span><span class="dash-item-muted">Loading…</span></li>
+          <li><span class="dash-badge">Info</span><span class="dash-item-muted">Loading...</span></li>
         </ul>
       </div>
     </div>
@@ -151,6 +184,18 @@
         </div>
 
         <div class="dash-quickgrid">
+
+          {% if wizard_first %}
+            <div class="dash-qa">
+              <div class="title">Start new work</div>
+              <div class="hint">Create a project first, then register or pre-create samples.</div>
+              <div class="row">
+                <a class="btn primary" href="{% url 'lims_core:wizard:step1' %}">Start wizard</a>
+                <a class="btn" href="{% url 'lims_core:wizard:step1' %}">Project only</a>
+              </div>
+            </div>
+          {% endif %}
+
           <div class="dash-qa">
             <div class="title">Review sample queue</div>
             <div class="hint">Filter by lab context and update workflow statuses.</div>
@@ -187,7 +232,7 @@
         <h3>Attention</h3>
         <div class="dash-muted" style="margin-top:6px;">Exceptions and alerts.</div>
         <ul class="dash-list" id="openAlerts">
-          <li><span class="dash-badge">Info</span><span class="dash-item-muted">Loading…</span></li>
+          <li><span class="dash-badge">Info</span><span class="dash-item-muted">Loading...</span></li>
         </ul>
       </div>
     </div>
@@ -244,50 +289,66 @@
     .then(data => {
       if (!data || data.ok === false){
         if(sessionStatus) sessionStatus.textContent = "Session: limited";
-        kpiSamples.textContent = "—";
-        kpiExperiments.textContent = "—";
-        recentEvents.innerHTML = "";
-        recentEvents.appendChild(listMuted("Stats unavailable."));
-        openAlerts.innerHTML = "";
-        openAlerts.appendChild(listMuted("Stats unavailable."));
+        if(kpiSamples) kpiSamples.textContent = "N/A";
+        if(kpiExperiments) kpiExperiments.textContent = "N/A";
+        if(recentEvents){
+          recentEvents.innerHTML = "";
+          recentEvents.appendChild(listMuted("Stats unavailable."));
+        }
+        if(openAlerts){
+          openAlerts.innerHTML = "";
+          openAlerts.appendChild(listMuted("Stats unavailable."));
+        }
         return;
       }
 
-      if (data.lab_id){
+      if (data.lab_id && labLabel){
         labLabel.textContent = " · Active lab: " + data.lab_id;
       }
 
-      kpiSamples.textContent =
-        (data.stats && data.stats.samples_total != null) ? data.stats.samples_total : "—";
-      kpiExperiments.textContent =
-        (data.stats && data.stats.experiments_total != null) ? data.stats.experiments_total : "—";
-
-      recentEvents.innerHTML = "";
-      if (data.recent_events && data.recent_events.length){
-        data.recent_events.slice(0, 6).forEach(e => {
-          recentEvents.appendChild(listRow("Event", e.label || "Event"));
-        });
-      } else {
-        recentEvents.appendChild(listMuted("No recent activity."));
+      if(kpiSamples){
+        kpiSamples.textContent =
+          (data.stats && data.stats.samples_total != null) ? data.stats.samples_total : "N/A";
+      }
+      if(kpiExperiments){
+        kpiExperiments.textContent =
+          (data.stats && data.stats.experiments_total != null) ? data.stats.experiments_total : "N/A";
       }
 
-      openAlerts.innerHTML = "";
-      if (data.open_alerts && data.open_alerts.length){
-        data.open_alerts.slice(0, 6).forEach(a => {
-          openAlerts.appendChild(listRow("Alert", a.label || "Alert"));
-        });
-      } else {
-        openAlerts.appendChild(listMuted("No open alerts."));
+      if(recentEvents){
+        recentEvents.innerHTML = "";
+        if (data.recent_events && data.recent_events.length){
+          data.recent_events.slice(0, 6).forEach(e => {
+            recentEvents.appendChild(listRow("Event", e.label || "Event"));
+          });
+        } else {
+          recentEvents.appendChild(listMuted("No recent activity."));
+        }
+      }
+
+      if(openAlerts){
+        openAlerts.innerHTML = "";
+        if (data.open_alerts && data.open_alerts.length){
+          data.open_alerts.slice(0, 6).forEach(a => {
+            openAlerts.appendChild(listRow("Alert", a.label || "Alert"));
+          });
+        } else {
+          openAlerts.appendChild(listMuted("No open alerts."));
+        }
       }
     })
     .catch(() => {
       if(sessionStatus) sessionStatus.textContent = "Session: limited";
-      kpiSamples.textContent = "—";
-      kpiExperiments.textContent = "—";
-      recentEvents.innerHTML = "";
-      recentEvents.appendChild(listMuted("Stats unavailable."));
-      openAlerts.innerHTML = "";
-      openAlerts.appendChild(listMuted("Stats unavailable."));
+      if(kpiSamples) kpiSamples.textContent = "N/A";
+      if(kpiExperiments) kpiExperiments.textContent = "N/A";
+      if(recentEvents){
+        recentEvents.innerHTML = "";
+        recentEvents.appendChild(listMuted("Stats unavailable."));
+      }
+      if(openAlerts){
+        openAlerts.innerHTML = "";
+        openAlerts.appendChild(listMuted("Stats unavailable."));
+      }
     });
 })();
 </script>

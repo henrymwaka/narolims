@@ -1,0 +1,42 @@
+{% extends "lims_core/wizard/base.html" %}
+{% block wizard_body %}
+<h3 style="margin-top:0;">Review and create</h3>
+
+<div style="border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:14px;">
+  <div><b>Laboratory</b>: {{ laboratory.name }}</div>
+  <div style="margin-top:10px;">
+    <b>Workflow template</b>:
+    {{ payload.template.workflow_name }} ({{ payload.template.workflow_code }}, {{ payload.template.workflow_version }})
+  </div>
+  <div style="margin-top:10px;">
+    <b>Project</b>:
+    {{ payload.project.name }}
+  </div>
+  {% if payload.project.description %}
+    <div style="margin-top:6px; opacity:0.85;">{{ payload.project.description }}</div>
+  {% endif %}
+
+  <div style="margin-top:10px;">
+    <b>Samples</b>:
+    {% if payload.samples.create_placeholders %}
+      Create {{ payload.samples.count }} placeholder samples (type: {{ payload.samples.sample_type }})
+    {% else %}
+      No placeholders
+    {% endif %}
+  </div>
+
+  {% if draft.last_error %}
+    <div style="margin-top:12px; padding:10px; border-radius:10px; border:1px solid rgba(255,120,120,0.35);">
+      <b>Last error</b>: {{ draft.last_error }}
+    </div>
+  {% endif %}
+</div>
+
+<form method="post" style="margin-top:14px;">
+  {% csrf_token %}
+  <div style="display:flex; gap:10px;">
+    <a class="button" href="{% url 'lims_project_wizard_step' 4 %}" style="text-decoration:none;">Back</a>
+    <button type="submit" class="button">Create project</button>
+  </div>
+</form>
+{% endblock %}

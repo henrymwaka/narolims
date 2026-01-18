@@ -1,0 +1,20 @@
+{% extends "lims_core/wizard/base.html" %}
+{% block wizard_body %}
+<h3 style="margin-top:0;">Pick a workflow template</h3>
+<div style="opacity:0.75; margin-bottom:12px;">
+  Laboratory: <b>{{ laboratory.name }}</b>
+</div>
+<form method="post">
+  {% csrf_token %}
+  <div style="margin:14px 0;">
+    {{ form.template_code.label_tag }}<br />
+    {{ form.template_code }}
+    {% for e in form.template_code.errors %}<div style="opacity:0.85;">{{ e }}</div>{% endfor %}
+  </div>
+
+  <div style="display:flex; gap:10px;">
+    <a class="button" href="{% url 'lims_project_wizard_step' 1 %}" style="text-decoration:none;">Back</a>
+    <button type="submit" class="button">Continue</button>
+  </div>
+</form>
+{% endblock %}

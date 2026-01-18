@@ -51,4 +51,4 @@ cookies.txt
 lims_core/management/commands/show_urls.py
 
 # Local artifacts
-_core -q
+.env

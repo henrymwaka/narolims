@@ -1,0 +1,35 @@
+{% extends "lims_core/wizard/base.html" %}
+{% block wizard_body %}
+<h3 style="margin-top:0;">Sample plan</h3>
+<div style="opacity:0.75; margin-bottom:12px;">
+  Optional. You can create placeholder samples now, or later.
+</div>
+
+<form method="post">
+  {% csrf_token %}
+
+  <div style="margin:14px 0;">
+    <label style="display:flex; gap:10px; align-items:center;">
+      {{ form.create_placeholders }} <span>Create placeholder samples now</span>
+    </label>
+    {% for e in form.create_placeholders.errors %}<div style="opacity:0.85;">{{ e }}</div>{% endfor %}
+  </div>
+
+  <div style="margin:14px 0;">
+    {{ form.count.label_tag }}<br />
+    {{ form.count }}
+    {% for e in form.count.errors %}<div style="opacity:0.85;">{{ e }}</div>{% endfor %}
+  </div>
+
+  <div style="margin:14px 0;">
+    {{ form.sample_type.label_tag }}<br />
+    {{ form.sample_type }}
+    {% for e in form.sample_type.errors %}<div style="opacity:0.85;">{{ e }}</div>{% endfor %}
+  </div>
+
+  <div style="display:flex; gap:10px;">
+    <a class="button" href="{% url 'lims_project_wizard_step' 3 %}" style="text-decoration:none;">Back</a>
+    <button type="submit" class="button">Continue</button>
+  </div>
+</form>
+{% endblock %}

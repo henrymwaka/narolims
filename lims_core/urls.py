@@ -45,6 +45,9 @@ from .views_ui import (
     sample_bulk_register,
 )
 
+# Entry redirect (wizard-first when there are no projects)
+from .views_ui_entry import ui_entry
+
 # =============================================================
 # Metadata UI (schema-driven)
 # =============================================================
@@ -130,9 +133,19 @@ urlpatterns = [
     path("docs/", docs_hub, name="docs-hub"),
 
     # =========================================================
+    # Wizard (assisted setup)
+    # =========================================================
+    path("wizard/", include(("lims_core.wizard.urls", "wizard"), namespace="wizard")),
+
+    # =========================================================
     # UI workspace (authenticated)
     # =========================================================
-    path("ui/", home, name="ui-home"),
+    # Entry point: if no projects exist in user lab scope, redirect to wizard
+    path("ui/", ui_entry, name="ui-home"),
+
+    # Actual workspace view (kept intact, but reachable after ui_entry redirect)
+    path("ui/workspace/", home, name="ui-workspace"),
+
     path("ui/stats/", ui_stats, name="ui-stats"),
     path("ui/logout/", ui_logout, name="ui-logout"),
     path("ui/workflow-demo/", workflow_widget_demo, name="workflow-demo"),
