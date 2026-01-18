@@ -44,8 +44,62 @@ def _institutes_from_labs(labs_qs):
     out = []
     for r in rows:
         if r.get("institute_id"):
-            out.append({"id": r["institute_id"], "name": (r.get("institute__name") or "").strip()})
+            out.append(
+                {"id": r["institute_id"], "name": (r.get("institute__name") or "").strip()}
+            )
     return out
+
+
+def _wizard_template_for_step(step_code: str, *, fallback: str) -> str:
+    """
+    Config-pack hook:
+    - If lims_core.config_packs.loader.load_pack_wizard exists and returns a template for step_code,
+      use it.
+    - Otherwise fall back to the hard-coded template path.
+
+    This keeps current behavior intact and avoids hard dependency on config packs.
+    """
+    try:
+        from lims_core.config_packs.loader import load_pack_wizard  # type: ignore
+    except Exception:
+        return fallback
+
+    try:
+        cfg = load_pack_wizard()  # expected to return object with .steps iterable
+        steps = getattr(cfg, "steps", None) or []
+        for s in steps:
+            code = getattr(s, "code", None)
+            tmpl = getattr(s, "template", None)
+            if str(code) == str(step_code) and tmpl:
+                return str(tmpl)
+    except Exception:
+        return fallback
+
+    return fallback
+
+
+def _wizard_title_and_step_title(step_code: str) -> tuple[str, str]:
+    """
+    Optional UX metadata from config packs:
+    Returns (wizard_title, step_title). Falls back to empty strings if unavailable.
+    """
+    try:
+        from lims_core.config_packs.loader import load_pack_wizard  # type: ignore
+    except Exception:
+        return ("", "")
+
+    try:
+        cfg = load_pack_wizard()
+        wiz_title = str(getattr(cfg, "title", "") or "")
+        step_title = ""
+        steps = getattr(cfg, "steps", None) or []
+        for s in steps:
+            if str(getattr(s, "code", "")) == str(step_code):
+                step_title = str(getattr(s, "title", "") or "")
+                break
+        return (wiz_title, step_title)
+    except Exception:
+        return ("", "")
 
 
 @login_required
@@ -58,13 +112,19 @@ def step1(request):
     - Right now, any user with a role in a lab can create a project for that lab.
     - If you want "only lab managers", we will enforce that once we inspect UserRole fields.
     """
+    template_name = _wizard_template_for_step("step1", fallback="lims_core/wizard/step1.html")
+    wizard_title, step_title = _wizard_title_and_step_title("step1")
+
     lab_ids = _user_lab_ids(request.user)
 
     if not lab_ids:
         return render(
             request,
-            "lims_core/wizard/step1.html",
+            template_name,
             {
+                "wizard_title": wizard_title,
+                "wizard_step_title": step_title,
+                "wizard_step_code": "step1",
                 "institutes": [],
                 "laboratories": [],
                 "inactive_warning": False,
@@ -96,12 +156,18 @@ def step1(request):
     if not institutes:
         return render(
             request,
-            "lims_core/wizard/step1.html",
+            template_name,
             {
+                "wizard_title": wizard_title,
+                "wizard_step_title": step_title,
+                "wizard_step_code": "step1",
                 "institutes": [],
                 "laboratories": [],
                 "inactive_warning": inactive_warning,
-                "error": "Your account has lab roles, but no institute-linked labs were found. Please contact an administrator.",
+                "error": (
+                    "Your account has lab roles, but no institute-linked labs were found. "
+                    "Please contact an administrator."
+                ),
                 "form": {
                     "institute_id": "",
                     "laboratory_id": "",
@@ -143,8 +209,11 @@ def step1(request):
         if not project_name:
             return render(
                 request,
-                "lims_core/wizard/step1.html",
+                template_name,
                 {
+                    "wizard_title": wizard_title,
+                    "wizard_step_title": step_title,
+                    "wizard_step_code": "step1",
                     "institutes": institutes,
                     "laboratories": labs_qs,  # full set, template filters client-side too
                     "inactive_warning": inactive_warning,
@@ -177,13 +246,17 @@ def step1(request):
             raise Http404("Laboratory not in scope")
 
         # Enforce institute match
-        lab_obj = get_object_or_404(Laboratory.objects.select_related("institute"), pk=laboratory_id)
+        lab_obj = get_object_or_404(
+            Laboratory.objects.select_related("institute"), pk=laboratory_id
+        )
         if str(lab_obj.institute_id) != str(selected_institute_id):
             raise Http404("Laboratory does not belong to selected institute")
 
         payload = {
             "institute_id": lab_obj.institute_id,
-            "institute_name": getattr(lab_obj.institute, "name", "") if getattr(lab_obj, "institute", None) else "",
+            "institute_name": getattr(lab_obj.institute, "name", "")
+            if getattr(lab_obj, "institute", None)
+            else "",
             "laboratory_id": laboratory_id,
             "laboratory_code": lab_obj.code,
             "laboratory_name": lab_obj.name,
@@ -218,8 +291,11 @@ def step1(request):
 
     return render(
         request,
-        "lims_core/wizard/step1.html",
+        template_name,
         {
+            "wizard_title": wizard_title,
+            "wizard_step_title": step_title,
+            "wizard_step_code": "step1",
             "institutes": institutes,
             "laboratories": labs_qs,  # full set, filtered client-side by institute
             "inactive_warning": inactive_warning,
@@ -238,6 +314,9 @@ def step2(request, draft_id: int):
     """
     Step 2: confirm sample placeholder creation and apply the draft.
     """
+    template_name = _wizard_template_for_step("step2", fallback="lims_core/wizard/step2.html")
+    wizard_title, step_title = _wizard_title_and_step_title("step2")
+
     draft = _draft_for_user_or_404(request=request, draft_id=draft_id)
 
     payload = draft.payload or {}
@@ -255,7 +334,12 @@ def step2(request, draft_id: int):
     samples_block = payload.get("samples") or {}
 
     if request.method == "POST":
-        create_placeholders = (request.POST.get("create_placeholders") or "") in ("1", "true", "on", "yes")
+        create_placeholders = (request.POST.get("create_placeholders") or "") in (
+            "1",
+            "true",
+            "on",
+            "yes",
+        )
         count_raw = (request.POST.get("count") or "0").strip()
         sample_type = (request.POST.get("sample_type") or "test").strip() or "test"
 
@@ -289,8 +373,11 @@ def step2(request, draft_id: int):
             samples_block = payload.get("samples") or {}
             return render(
                 request,
-                "lims_core/wizard/step2.html",
+                template_name,
                 {
+                    "wizard_title": wizard_title,
+                    "wizard_step_title": step_title,
+                    "wizard_step_code": "step2",
                     "draft": draft,
                     "project": project_block,
                     "samples": samples_block,
@@ -300,8 +387,11 @@ def step2(request, draft_id: int):
 
     return render(
         request,
-        "lims_core/wizard/step2.html",
+        template_name,
         {
+            "wizard_title": wizard_title,
+            "wizard_step_title": step_title,
+            "wizard_step_code": "step2",
             "draft": draft,
             "project": project_block,
             "samples": samples_block,
