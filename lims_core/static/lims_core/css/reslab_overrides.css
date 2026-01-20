@@ -32,12 +32,17 @@ textarea {
   color: var(--muted, #64748b);
 }
 
-/* Links in light area */
-a {
-  color: var(--brand, #1d4ed8);
+/* Links in light content */
+.main a,
+.page-card a,
+.page-card a:visited,
+.page-card .inline-link {
+  color: var(--brand, #2563eb);
   text-decoration: none;
 }
-a:hover {
+.main a:hover,
+.page-card a:hover,
+.page-card .inline-link:hover {
   text-decoration: underline;
 }
 
@@ -153,6 +158,11 @@ table.meta td {
   color: var(--text, #0f172a);
 }
 
+/* Table header contrast (global) */
+table th {
+  color: var(--muted, #5b6576);
+}
+
 /* ==========================================================
    4) Workflow widget should never inherit sidebar text
    ========================================================== */
@@ -214,9 +224,41 @@ table.meta td {
 }
 
 /* ==========================================================
-   5) Homepage menu item visibility (Samples | Batches | etc)
-   Fix white text on pale pill background
+   5) Buttons, tabs, and pill-like nav in light area
+   Prevent white-on-light controls
    ========================================================== */
+
+/* General button consistency in light area */
+.main .btn,
+.page-card .btn {
+  border: 1px solid var(--border, #e6e9f0);
+  background: #fff;
+  color: var(--text, #0b1220);
+  box-shadow: 0 8px 18px rgba(16,24,40,.06);
+}
+
+.main .btn:hover,
+.page-card .btn:hover {
+  background: rgba(15,23,42,.03);
+  border-color: rgba(37,99,235,.35);
+}
+
+/* Keep true primary buttons as primary */
+.main .btn.primary,
+.page-card .btn.primary,
+.main .btn.btn-primary,
+.page-card .btn.btn-primary {
+  background: linear-gradient(135deg, rgba(37,99,235,.95), rgba(14,165,233,.92));
+  color: #fff;
+  border-color: rgba(255,255,255,.16);
+}
+
+.main .btn.primary:hover,
+.page-card .btn.primary:hover,
+.main .btn.btn-primary:hover,
+.page-card .btn.btn-primary:hover {
+  filter: brightness(1.02);
+}
 
 /* Any non-primary btn inside main content must have dark text */
 .main a.btn:not(.primary):not(.btn-primary):not([data-variant="primary"]),
@@ -234,29 +276,17 @@ table.meta td {
   border-color: rgba(59, 130, 246, 0.35);
 }
 
-/* Keep true primary buttons white text */
-.main a.btn.primary,
-.main a.btn.btn-primary,
-.main button.btn.primary,
-.main button.btn.btn-primary {
-  color: #fff;
-}
-
 /* If homepage uses pill-like nav that isn't .btn */
 .main .pill-btn,
 .main .tab-pill,
-.main .hero-tabs a {
-  color: var(--text, #0f172a);
-}
-
-/* ==========================================================
-   6) Misc: links and chips on light cards
-   ========================================================== */
-
-.page-card a,
-.page-card a:visited,
-.page-card .inline-link {
-  color: var(--brand, #1d4ed8);
+.main .hero-tabs a,
+.page-card a.pill,
+.page-card .pill a,
+.page-card .tabs a,
+.page-card .tab a,
+.page-card .nav a,
+.page-card .menu a {
+  color: var(--text, #0b1220) !important;
 }
 
 /* Ghost/outline buttons inside light content must not inherit dark styles */
@@ -281,7 +311,7 @@ table.meta td {
 /* Quick start links sometimes get muted too hard */
 .main .dash-card a,
 .main .page-body a {
-  color: var(--brand, #1d4ed8);
+  color: var(--brand, #2563eb);
 }
 .main .dash-card a:hover,
 .main .page-body a:hover {
@@ -293,93 +323,61 @@ table.meta td {
   color: var(--text, #0f172a);
 }
 
-/* Input placeholder visibility */
+/* Input placeholder visibility (topbar search) */
 .topbar input::placeholder {
   color: rgba(100, 116, 139, 0.9);
 }
 
-/* ==========================================================
-   5B) Homepage pill tabs: force readable text on light pills
-   Works even if components set .btn { color:#fff }
-   ========================================================== */
-
-/* Tabs/pills inside the home hero area or any card header area */
-.main .page-card a.btn,
-.main .page-card button.btn {
-  color: var(--text, #0f172a);
-}
-
-/* Non-primary pills must never be white text */
-.main .page-card a.btn:not(.primary):not(.btn-primary):not([data-variant="primary"]),
-.main .page-card button.btn:not(.primary):not(.btn-primary):not([data-variant="primary"]) {
-  color: var(--text, #0f172a) !important;
-}
-
-/* Keep real primary buttons white text */
-.main .page-card a.btn.primary,
-.main .page-card a.btn.btn-primary,
-.main .page-card button.btn.primary,
-.main .page-card button.btn.btn-primary {
-  color: #fff !important;
-}
-
-/* If those tabs are not .btn but plain links inside a pill container */
-.main .page-card .pill a,
-.main .page-card .tabs a,
-.main .page-card .menu a {
-  color: var(--text, #0f172a) !important;
-}
-
-/* Hard safety: never allow white text on light content cards */
+/* Hard safety: never allow random component overrides to force white text */
 .main .page-card,
-.main .page-card *{
+.main .page-card * {
   color: inherit;
 }
-/* ===== Final SaaS polish (global) ===== */
 
-/* Links in light content */
-.main a { color: var(--brand, #2563eb); }
-.main a:hover { text-decoration: underline; }
+/* ==========================================================
+   6) Accessibility: focus rings
+   ========================================================== */
 
-/* Ensure any pill/tab-like links in cards are readable */
-.page-card a.pill, .page-card .pill a,
-.page-card .tabs a, .page-card .tab a,
-.page-card .nav a, .page-card .menu a {
-  color: var(--text, #0b1220);
-}
-
-/* Button consistency in light area */
-.main .btn,
-.page-card .btn {
-  border: 1px solid var(--border, #e6e9f0);
-  background: #fff;
-  color: var(--text, #0b1220);
-  box-shadow: 0 8px 18px rgba(16,24,40,.06);
-}
-.main .btn:hover,
-.page-card .btn:hover {
-  background: rgba(15,23,42,.03);
-  border-color: rgba(37,99,235,.35);
-}
-
-/* Primary buttons keep gradient */
-.main .btn.primary,
-.page-card .btn.primary {
-  background: linear-gradient(135deg, rgba(37,99,235,.95), rgba(14,165,233,.92));
-  color: #fff;
-  border-color: rgba(255,255,255,.16);
-}
-.main .btn.primary:hover,
-.page-card .btn.primary:hover {
-  filter: brightness(1.02);
-}
-
-/* Focus rings (keyboard + accessibility) */
-:where(a, button, input, select, textarea):focus-visible{
+:where(a, button, input, select, textarea):focus-visible {
   outline: 3px solid rgba(37,99,235,.25);
   outline-offset: 2px;
   border-radius: 12px;
 }
 
-/* Table header contrast */
-table th { color: var(--muted, #5b6576); }
+/* ==========================================================
+   X) Hard safety: form control readability in light areas
+   Applies across UI pages (metadata, wizard, project creation, etc.)
+   ========================================================== */
+
+.main input,
+.main select,
+.main textarea,
+.page-card input,
+.page-card select,
+.page-card textarea,
+.content input,
+.content select,
+.content textarea {
+  color: #0b1220 !important;
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+/* Placeholder must remain visible, not washed out */
+.main input::placeholder,
+.main textarea::placeholder,
+.page-card input::placeholder,
+.page-card textarea::placeholder,
+.content input::placeholder,
+.content textarea::placeholder {
+  color: rgba(15, 23, 42, 0.55) !important;
+  opacity: 1 !important;
+}
+
+/* Dropdown options */
+.main select option,
+.page-card select option,
+.content select option {
+  color: #0b1220;
+  background: #ffffff;
+}
