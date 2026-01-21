@@ -1,0 +1,90 @@
+{% extends "lims_core/base.html" %}
+
+{% block page_title %}Lab configuration{% endblock %}
+{% block card_title %}Lab configuration{% endblock %}
+{% block card_meta %}Overview of labs, profiles, and active configuration packs.{% endblock %}
+
+{% block content %}
+
+  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+    <a class="btn primary" href="{% url 'lims_core:labconfig_wizard:manage' %}?new=1">Configure a lab</a>
+    <a class="btn" href="{% url 'lims_core:ui-home' %}">Back to workspace</a>
+  </div>
+
+  <div style="overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:14px;">
+    <table style="width:100%;border-collapse:collapse;min-width:1100px;">
+      <thead>
+        <tr style="text-align:left;">
+          <th style="padding:10px;">Lab</th>
+          <th style="padding:10px;">Institute</th>
+          <th style="padding:10px;">Profile</th>
+          <th style="padding:10px;">Default schema</th>
+          <th style="padding:10px;">Default context</th>
+          <th style="padding:10px;">Active packs</th>
+          <th style="padding:10px;">Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for lab in labs %}
+          {% with p=profiles|get_item:lab.id %}
+          <tr style="border-top:1px solid rgba(255,255,255,.08); vertical-align:top;">
+            <td style="padding:10px;">
+              <b>{{ lab.code }}</b><br>
+              <span class="muted">{{ lab.name }}</span>
+            </td>
+
+            <td style="padding:10px;">
+              {{ lab.institute.name|default:"-" }}
+            </td>
+
+            <td style="padding:10px;">
+              {% if p %}
+                <code>{{ p.lab_type }}</code>
+              {% else %}
+                <span class="muted">No profile</span>
+              {% endif %}
+            </td>
+
+            <td style="padding:10px;">
+              {% if p %}
+                <code>{{ p.schema_code }}</code> <span class="muted">({{ p.schema_version }})</span>
+              {% else %}-{% endif %}
+            </td>
+
+            <td style="padding:10px;">
+              {% if p and p.default_analysis_context_id %}
+                <code>{{ p.default_analysis_context_id }}</code>
+              {% else %}
+                <span class="muted">None</span>
+              {% endif %}
+            </td>
+
+            <td style="padding:10px;">
+              {% with packs=packs_by_lab|get_item:lab.id %}
+                {% if packs %}
+                  {% for a in packs %}
+                    <div style="margin-bottom:6px;">
+                      <code>{{ a.pack.kind }}</code>
+                      <code>{{ a.pack.code }}</code>
+                      <span class="muted">prio={{ a.priority }}</span>
+                      {% if not a.is_enabled %}<span class="muted">(disabled)</span>{% endif %}
+                    </div>
+                  {% endfor %}
+                {% else %}
+                  <span class="muted">No pack assignments</span>
+                {% endif %}
+              {% endwith %}
+            </td>
+
+            <td style="padding:10px;">
+              <a class="btn" href="{% url 'lims_core:labconfig_wizard:manage' %}?new=1">Configure</a>
+            </td>
+          </tr>
+          {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+{% endblock %}

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from functools import lru_cache
+
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -10,6 +13,8 @@ from django.urls import reverse
 from lims_core.models.core import Laboratory, UserRole
 from lims_core.models.drafts import ProjectDraft
 from lims_core.wizard.services import apply_project_draft
+
+logger = logging.getLogger(__name__)
 
 
 def _user_lab_ids(user) -> list[int]:
@@ -50,30 +55,55 @@ def _institutes_from_labs(labs_qs):
     return out
 
 
+@lru_cache(maxsize=8)
+def _load_active_wizard_config():
+    """
+    Read active wizard config from config packs, if available.
+
+    Cached in-process to avoid re-reading YAML on every request.
+    Cleared on gunicorn restart/reload.
+    """
+    from lims_core.config_packs.loader import get_active_pack_code, load_pack_wizard  # type: ignore
+
+    pack_code = (get_active_pack_code() or "default").strip() or "default"
+    return load_pack_wizard(pack_code=pack_code)
+
+
 def _wizard_template_for_step(step_code: str, *, fallback: str) -> str:
     """
     Config-pack hook:
-    - If lims_core.config_packs.loader.load_pack_wizard exists and returns a template for step_code,
-      use it.
-    - Otherwise fall back to the hard-coded template path.
-
-    This keeps current behavior intact and avoids hard dependency on config packs.
+    - Try to load wizard config from the active pack and return template for step_code.
+    - Supports object-like and dict-like config/steps.
+    - On any failure or missing template, falls back.
     """
     try:
-        from lims_core.config_packs.loader import load_pack_wizard  # type: ignore
-    except Exception:
+        cfg = _load_active_wizard_config()
+    except Exception as e:
+        logger.warning("wizard config pack load failed for step=%s; using fallback: %s", step_code, e)
         return fallback
 
-    try:
-        cfg = load_pack_wizard()  # expected to return object with .steps iterable
+    # cfg may be an object or dict
+    if isinstance(cfg, dict):
+        steps = cfg.get("steps") or []
+    else:
         steps = getattr(cfg, "steps", None) or []
-        for s in steps:
-            code = getattr(s, "code", None)
-            tmpl = getattr(s, "template", None)
-            if str(code) == str(step_code) and tmpl:
-                return str(tmpl)
-    except Exception:
+
+    if not steps:
         return fallback
+
+    for s in steps:
+        if not s:
+            continue
+
+        if isinstance(s, dict):
+            code = (s.get("code") or "").strip()
+            tmpl = (s.get("template") or "").strip()
+        else:
+            code = (getattr(s, "code", "") or "").strip()
+            tmpl = (getattr(s, "template", "") or "").strip()
+
+        if str(code) == str(step_code) and tmpl:
+            return str(tmpl)
 
     return fallback
 
@@ -82,24 +112,38 @@ def _wizard_title_and_step_title(step_code: str) -> tuple[str, str]:
     """
     Optional UX metadata from config packs:
     Returns (wizard_title, step_title). Falls back to empty strings if unavailable.
+
+    Supports object-like and dict-like config/steps.
     """
     try:
-        from lims_core.config_packs.loader import load_pack_wizard  # type: ignore
+        cfg = _load_active_wizard_config()
     except Exception:
         return ("", "")
 
-    try:
-        cfg = load_pack_wizard()
+    if isinstance(cfg, dict):
+        wiz_title = str(cfg.get("title") or "")
+        steps = cfg.get("steps") or []
+    else:
         wiz_title = str(getattr(cfg, "title", "") or "")
-        step_title = ""
         steps = getattr(cfg, "steps", None) or []
-        for s in steps:
-            if str(getattr(s, "code", "")) == str(step_code):
-                step_title = str(getattr(s, "title", "") or "")
-                break
-        return (wiz_title, step_title)
-    except Exception:
-        return ("", "")
+
+    step_title = ""
+    for s in steps:
+        if not s:
+            continue
+
+        if isinstance(s, dict):
+            code = str(s.get("code") or "")
+            title = str(s.get("title") or "")
+        else:
+            code = str(getattr(s, "code", "") or "")
+            title = str(getattr(s, "title", "") or "")
+
+        if str(code) == str(step_code):
+            step_title = title
+            break
+
+    return (wiz_title, step_title)
 
 
 @login_required

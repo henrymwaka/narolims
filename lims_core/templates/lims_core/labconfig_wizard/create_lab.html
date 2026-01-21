@@ -1,0 +1,52 @@
+{% extends "lims_core/base.html" %}
+{% block card_title %}Create laboratory{% endblock %}
+{% block card_meta %}Creates a lab and then redirects into the configuration wizard{% endblock %}
+
+{% block content %}
+<div class="stack gap-16" style="max-width: 920px;">
+
+  <form method="post" class="card" style="padding: 16px;">
+    {% csrf_token %}
+
+    <div style="font-weight: 900; margin-bottom: 10px;">Laboratory details</div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+      <div>
+        <label style="display:block; font-weight:800; font-size: 12px; margin-bottom: 6px;">Institute</label>
+        {{ form.institute }}
+        {% if form.institute.errors %}<div style="color:#b91c1c;">{{ form.institute.errors }}</div>{% endif %}
+      </div>
+
+      <div>
+        <label style="display:block; font-weight:800; font-size: 12px; margin-bottom: 6px;">Lab code</label>
+        {{ form.code }}
+        {% if form.code.errors %}<div style="color:#b91c1c;">{{ form.code.errors }}</div>{% endif %}
+      </div>
+
+      <div style="grid-column: 1 / -1;">
+        <label style="display:block; font-weight:800; font-size: 12px; margin-bottom: 6px;">Lab name</label>
+        {{ form.name }}
+        {% if form.name.errors %}<div style="color:#b91c1c;">{{ form.name.errors }}</div>{% endif %}
+      </div>
+
+      <div style="grid-column: 1 / -1;">
+        <label style="display:block; font-weight:800; font-size: 12px; margin-bottom: 6px;">Location (optional)</label>
+        {{ form.location }}
+        {% if form.location.errors %}<div style="color:#b91c1c;">{{ form.location.errors }}</div>{% endif %}
+      </div>
+
+      <div style="grid-column: 1 / -1;">
+        <label style="display:flex; gap: 8px; align-items:center;">
+          {{ form.is_active }} <span style="font-weight: 800;">Active</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="row gap-10 wrap" style="margin-top: 14px; justify-content: flex-end;">
+      <a class="btn" href="{% url 'lims_core:labconfig_wizard:manage' %}">Back</a>
+      <button class="btn primary" type="submit">Create and configure</button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

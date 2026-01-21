@@ -1,0 +1,69 @@
+{% extends "lims_core/base.html" %}
+
+{% block page_title %}Lab Admin{% endblock %}
+{% block card_title %}Lab Admin{% endblock %}
+{% block card_meta %}Manage users and lab assignments within your scope.{% endblock %}
+
+{% block content %}
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+    <a class="btn primary" href="{% url 'lims_core:lab-admin-create-user' %}">Create user</a>
+    <a class="btn" href="{% url 'lims_core:lab-admin-assign-user' %}">Assign user to lab</a>
+  </div>
+
+  {% if messages %}
+    <div style="margin-bottom:12px;">
+      {% for message in messages %}
+        <div style="padding:10px;border-radius:12px;border:1px solid rgba(0,0,0,.08);background:#fff;margin-bottom:8px;">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if lab_count == 0 %}
+    <div style="padding:12px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:#fff;">
+      No laboratory scope is assigned to your account.
+    </div>
+  {% else %}
+    {% for g in groups %}
+      <div style="margin-bottom:14px;padding:12px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:#fff;">
+        <div style="font-weight:700;margin-bottom:8px;">
+          {{ g.lab.code }} | {{ g.lab.name }}
+        </div>
+
+        <div style="overflow:auto;">
+          <table style="width:100%;border-collapse:collapse;min-width:920px;">
+            <thead>
+              <tr style="text-align:left;">
+                <th style="padding:10px;">Username</th>
+                <th style="padding:10px;">Email</th>
+                <th style="padding:10px;">Role</th>
+                <th style="padding:10px;">Active</th>
+                <th style="padding:10px;">Staff</th>
+                <th style="padding:10px;">Last login</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if g.rows %}
+                {% for r in g.rows %}
+                  <tr style="border-top:1px solid rgba(0,0,0,.06);">
+                    <td style="padding:10px;"><code>{{ r.username }}</code></td>
+                    <td style="padding:10px;">{{ r.email|default:"" }}</td>
+                    <td style="padding:10px;">{{ r.role|default:"" }}</td>
+                    <td style="padding:10px;">{{ r.is_active }}</td>
+                    <td style="padding:10px;">{{ r.is_staff }}</td>
+                    <td style="padding:10px;">{{ r.last_login|default:"" }}</td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr style="border-top:1px solid rgba(0,0,0,.06);">
+                  <td colspan="6" style="padding:12px;opacity:.75;">No users assigned to this lab yet.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endblock %}

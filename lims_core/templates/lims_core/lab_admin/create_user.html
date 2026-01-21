@@ -1,0 +1,66 @@
+{% extends "lims_core/base.html" %}
+
+{% block page_title %}Lab Admin{% endblock %}
+{% block card_title %}Create user{% endblock %}
+{% block card_meta %}Create a non-admin user and optionally assign them to a lab.{% endblock %}
+
+{% block content %}
+  {% if error %}
+    <div style="padding:10px;border-radius:12px;border:1px solid rgba(220,38,38,.25);background:rgba(220,38,38,.08);margin-bottom:12px;">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="section" style="padding:12px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:#fff;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label><b>Username</b></label><br/>
+          <input name="username" value="{{ form.username|default:'' }}" style="width:100%;" />
+        </div>
+        <div>
+          <label><b>Email</b></label><br/>
+          <input name="email" value="{{ form.email|default:'' }}" style="width:100%;" />
+        </div>
+
+        <div>
+          <label><b>First name</b></label><br/>
+          <input name="first_name" value="{{ form.first_name|default:'' }}" style="width:100%;" />
+        </div>
+        <div>
+          <label><b>Last name</b></label><br/>
+          <input name="last_name" value="{{ form.last_name|default:'' }}" style="width:100%;" />
+        </div>
+
+        <div>
+          <label><b>Assign to lab (optional)</b></label><br/>
+          <select name="laboratory_id" style="width:100%;">
+            <option value="">None</option>
+            {% for lab in labs %}
+              <option value="{{ lab.id }}" {% if form.laboratory_id == lab.id|stringformat:"s" %}selected{% endif %}>
+                {{ lab.code }} | {{ lab.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label><b>Role (optional)</b></label><br/>
+          <select name="role" style="width:100%;">
+            <option value="">Default</option>
+            {% for v,lbl in roles %}
+              <option value="{{ v }}" {% if form.role == v %}selected{% endif %}>{{ lbl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+      <button class="btn primary" type="submit">Create user</button>
+      <a class="btn" href="{% url 'lims_core:lab-admin-home' %}">Back</a>
+    </div>
+  </form>
+{% endblock %}

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 import json
+import datetime
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -106,10 +107,7 @@ def _normalize_choice_options(field) -> List[Dict[str, str]]:
     try:
         data = json.loads(raw)
         if isinstance(data, list):
-            return [
-                {"value": str(v).strip(), "label": str(v).strip()}
-                for v in data if str(v).strip()
-            ]
+            return [{"value": str(v).strip(), "label": str(v).strip()} for v in data if str(v).strip()]
         if isinstance(data, dict):
             return [
                 {"value": str(k).strip(), "label": str(v).strip() or str(k).strip()}
@@ -120,6 +118,50 @@ def _normalize_choice_options(field) -> List[Dict[str, str]]:
         pass
 
     return [{"value": p, "label": p} for p in raw.split(",") if p.strip()]
+
+
+def _post_value_for_field(request: HttpRequest, field) -> tuple[Optional[str], Optional[str]]:
+    """
+    Return (raw_value, matched_key).
+    Supports multiple naming conventions so the view does not silently miss inputs.
+    """
+    candidates = [
+        getattr(field, "code", None),
+        f"field_{getattr(field, 'code', '')}" if getattr(field, "code", None) else None,
+        f"field_{getattr(field, 'id', '')}" if getattr(field, "id", None) else None,
+        str(getattr(field, "id", "")) if getattr(field, "id", None) else None,
+    ]
+    for k in candidates:
+        if not k:
+            continue
+        if k in request.POST:
+            return request.POST.get(k), k
+    return None, None
+
+
+def _coerce_payload_value(field, raw: Optional[str]) -> Any:
+    if raw in ("", None):
+        return None
+
+    if field.field_type == "number":
+        try:
+            return float(raw)
+        except ValueError:
+            return raw
+
+    if field.field_type == "boolean":
+        return str(raw).lower() in ("1", "true", "yes", "on")
+
+    if field.field_type == "date":
+        s = str(raw).strip()
+        if not s:
+            return None
+        try:
+            return datetime.date.fromisoformat(s)
+        except Exception:
+            return s
+
+    return str(raw).strip()
 
 
 def _persist_metadata_values(
@@ -134,6 +176,18 @@ def _persist_metadata_values(
         if field.code not in payload:
             continue
 
+        value = payload.get(field.code)
+
+        # Blank submitted: clear optional fields by deleting the row.
+        if value is None:
+            if not getattr(field, "required", False):
+                MetadataValue.objects.filter(
+                    schema_field=field,
+                    object_type=object_type,
+                    object_id=object_id,
+                ).delete()
+            continue
+
         mv, _ = MetadataValue.objects.get_or_create(
             schema_field=field,
             object_type=object_type,
@@ -141,12 +195,12 @@ def _persist_metadata_values(
             defaults={"created_by": user},
         )
 
-        mv.value_text = None
+        # IMPORTANT: value_text is NOT NULL in your DB, so never set it to None.
+        mv.value_text = ""
         mv.value_number = None
         mv.value_date = None
         mv.value_boolean = None
 
-        value = payload[field.code]
         if field.field_type == "number":
             mv.value_number = value
         elif field.field_type == "date":
@@ -154,7 +208,7 @@ def _persist_metadata_values(
         elif field.field_type == "boolean":
             mv.value_boolean = value
         else:
-            mv.value_text = value or ""
+            mv.value_text = str(value) if value is not None else ""
 
         mv.created_by = user
         mv.save()
@@ -177,9 +231,7 @@ def metadata_form(request: HttpRequest, object_type: str, object_id: int) -> Htt
     if laboratory_profile is None:
         raise PermissionDenied("Object is not linked to a laboratory profile")
 
-    accreditation_mode = bool(
-        getattr(laboratory_profile, "accreditation_mode", False)
-    )
+    accreditation_mode = bool(getattr(laboratory_profile, "accreditation_mode", False))
 
     try:
         schemas = list(
@@ -191,64 +243,72 @@ def metadata_form(request: HttpRequest, object_type: str, object_id: int) -> Htt
         )
     except Exception:
         logger.exception("Schema resolution failed")
-        messages.error(
-            request,
-            "Metadata configuration error. Please contact the administrator.",
-        )
+        messages.error(request, "Metadata configuration error. Please contact the administrator.")
         return redirect(request.META.get("HTTP_REFERER", "/"))
 
     if not schemas:
         messages.info(request, "No metadata schema applies to this object.")
         return redirect(request.META.get("HTTP_REFERER", "/"))
 
-    any_schema_unlocked = any(
-        not getattr(schema, "is_locked", False)
-        for schema in schemas
-    )
-
+    any_schema_unlocked = any(not getattr(schema, "is_locked", False) for schema in schemas)
     disable_submit = accreditation_mode and any_schema_unlocked
 
-    existing_values = _get_existing_values(
-        object_type=object_type,
-        object_id=object_id,
-    )
-
+    existing_values = _get_existing_values(object_type=object_type, object_id=object_id)
     errors: Dict[str, Dict[str, list]] = {}
 
     if request.method == "POST":
+        logger.info(
+            "METADATA_POST: object_type=%s object_id=%s content_type=%s POST_keys=%s",
+            object_type,
+            object_id,
+            request.content_type,
+            list(request.POST.keys()),
+        )
+
         if disable_submit:
             messages.error(
                 request,
-                "Metadata cannot be saved while accreditation mode is active "
-                "and the schema is not locked.",
+                "Metadata cannot be saved while accreditation mode is active and the schema is not locked.",
             )
             return redirect(request.path)
 
         payload: Dict[str, Any] = {}
+        captured_any_key = False
 
         for schema in schemas:
             for field in schema.fields.all():
-                raw = request.POST.get(field.code)
-                if raw in ("", None):
-                    payload[field.code] = None
-                    continue
+                raw, matched_key = _post_value_for_field(request, field)
 
-                if field.field_type == "number":
-                    try:
-                        payload[field.code] = float(raw)
-                    except ValueError:
-                        payload[field.code] = raw
-                elif field.field_type == "boolean":
-                    payload[field.code] = raw.lower() in ("1", "true", "yes", "on")
+                if matched_key is not None:
+                    captured_any_key = True
+
+                    # optional blank: store as None so _persist deletes row
+                    coerced = _coerce_payload_value(field, raw)
+                    if coerced is None and not getattr(field, "required", False):
+                        payload[field.code] = None
+                    else:
+                        payload[field.code] = coerced
                 else:
-                    payload[field.code] = raw.strip()
+                    # Required but missing entirely from POST: mark missing for validator
+                    if getattr(field, "required", False):
+                        payload[field.code] = None
+
+        if not captured_any_key:
+            logger.warning(
+                "No metadata fields captured from POST. object_type=%s object_id=%s schema_ids=%s",
+                object_type,
+                object_id,
+                [getattr(s, "id", None) for s in schemas],
+            )
+            messages.error(request, "Nothing was saved. No metadata fields were captured from the submitted form.")
+            return redirect(request.path)
 
         for schema in schemas:
             result = validate_metadata_payload(schema=schema, payload=payload)
-            if result["missing_fields"] or result["invalid_fields"]:
+            if result.get("missing_fields") or result.get("invalid_fields"):
                 errors[schema.code] = {
-                    "missing": result["missing_fields"],
-                    "invalid": result["invalid_fields"],
+                    "missing": result.get("missing_fields", []),
+                    "invalid": result.get("invalid_fields", []),
                 }
 
         if not errors:
@@ -265,14 +325,12 @@ def metadata_form(request: HttpRequest, object_type: str, object_id: int) -> Htt
 
         messages.error(request, "Please correct the errors below.")
 
+    # Attach renderer template path and options so the template can include correctly.
     for schema in schemas:
         for field in schema.fields.all():
-            field.renderer = _pick_field_template(field.field_type)
-            field.choice_options = (
-                _normalize_choice_options(field)
-                if field.field_type == "choice"
-                else []
-            )
+            field.renderer_template = _pick_field_template(field.field_type)
+            field.choice_options = _normalize_choice_options(field) if field.field_type == "choice" else []
+            field.current_value = existing_values.get(field.code, "")
 
     return render(
         request,

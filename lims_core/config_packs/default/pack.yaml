@@ -1,0 +1,4 @@
+code: default
+name: Default Pack
+version: 0.1.0
+default_wizard: project_wizard_v1

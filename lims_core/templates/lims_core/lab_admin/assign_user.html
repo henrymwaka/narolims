@@ -1,0 +1,56 @@
+{% extends "lims_core/base.html" %}
+
+{% block page_title %}Lab Admin{% endblock %}
+{% block card_title %}Assign user to lab{% endblock %}
+{% block card_meta %}Create or update a lab assignment for an existing user.{% endblock %}
+
+{% block content %}
+  {% if error %}
+    <div style="padding:10px;border-radius:12px;border:1px solid rgba(220,38,38,.25);background:rgba(220,38,38,.08);margin-bottom:12px;">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="section" style="padding:12px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:#fff;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label><b>User</b></label><br/>
+          <select name="user_id" style="width:100%;">
+            <option value="">Select user</option>
+            {% for u in users %}
+              <option value="{{ u.id }}">{{ u.username }}{% if u.email %} ({{ u.email }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label><b>Laboratory</b></label><br/>
+          <select name="laboratory_id" style="width:100%;">
+            <option value="">Select lab</option>
+            {% for lab in labs %}
+              <option value="{{ lab.id }}">{{ lab.code }} | {{ lab.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label><b>Role</b></label><br/>
+          <select name="role" style="width:100%;">
+            <option value="">Default</option>
+            {% for v,lbl in roles %}
+              <option value="{{ v }}">{{ lbl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+      <button class="btn primary" type="submit">Assign</button>
+      <a class="btn" href="{% url 'lims_core:lab-admin-home' %}">Back</a>
+    </div>
+  </form>
+{% endblock %}

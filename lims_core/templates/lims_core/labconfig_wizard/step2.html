@@ -1,0 +1,57 @@
+{% extends "lims_core/base.html" %}
+{% block page_title %}Lab configuration{% endblock %}
+{% block card_title %}Configure Laboratory Profile{% endblock %}
+{% block card_meta %}{{ lab.code }} | {{ lab.name }}{% endblock %}
+
+{% block content %}
+  {% if error %}
+    <div style="padding:12px;border:1px solid rgba(255,80,80,.35);border-radius:12px;margin-bottom:12px;">
+      <b>Error:</b> {{ error }}
+    </div>
+  {% endif %}
+
+  <form method="post" style="display:grid;gap:12px;max-width:820px;">
+    {% csrf_token %}
+
+    <label style="display:grid;gap:6px;">
+      <span style="font-weight:700;">Lab type</span>
+      <input class="input" name="lab_type" value="{{ form.lab_type }}" placeholder="e.g. soils, water, biotech" required>
+    </label>
+
+    <label style="display:grid;gap:6px;">
+      <span style="font-weight:700;">Description</span>
+      <textarea class="input" name="description" rows="4" placeholder="Optional">{{ form.description }}</textarea>
+    </label>
+
+    <label style="display:flex;gap:10px;align-items:center;">
+      <input type="checkbox" name="accreditation_mode" {% if form.accreditation_mode %}checked{% endif %}>
+      <span><b>Accreditation mode</b> (locked schemas only)</span>
+    </label>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <label style="display:grid;gap:6px;">
+        <span style="font-weight:700;">Default schema code</span>
+        <input class="input" name="schema_code" value="{{ form.schema_code }}" placeholder="INTAKE_CORE" required>
+      </label>
+
+      <label style="display:grid;gap:6px;">
+        <span style="font-weight:700;">Default schema version</span>
+        <input class="input" name="schema_version" value="{{ form.schema_version }}" placeholder="v1">
+      </label>
+    </div>
+
+    <label style="display:grid;gap:6px;">
+      <span style="font-weight:700;">Default analysis context (optional)</span>
+      <select name="default_analysis_context_id" class="input">
+        {% for val,label in analysis_context_choices %}
+          <option value="{{ val }}" {% if val|stringformat:"s" == form.default_analysis_context_id|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="submit" class="btn primary">Continue</button>
+      <a class="btn" href="{% url 'lims_core:labconfig_wizard:step1' %}">Back</a>
+    </div>
+  </form>
+{% endblock %}

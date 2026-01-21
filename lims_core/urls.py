@@ -49,6 +49,15 @@ from .views_ui import (
 from .views_ui_entry import ui_entry
 
 # =============================================================
+# Lab Admin UI (scope-based user management)
+# =============================================================
+from .views_ui_lab_admin import (
+    lab_admin_home,
+    lab_admin_create_user,
+    lab_admin_assign_user,
+)
+
+# =============================================================
 # Metadata UI (schema-driven)
 # =============================================================
 from .views_metadata_ui import metadata_form
@@ -138,6 +147,17 @@ urlpatterns = [
     path("wizard/", include(("lims_core.wizard.urls", "wizard"), namespace="wizard")),
 
     # =========================================================
+    # Lab configuration wizard (staff only)
+    # =========================================================
+    path(
+        "labconfig/",
+        include(
+            ("lims_core.labconfig_wizard.urls", "labconfig_wizard"),
+            namespace="labconfig_wizard",
+        ),
+    ),
+
+    # =========================================================
     # UI workspace (authenticated)
     # =========================================================
     # Entry point: if no projects exist in user lab scope, redirect to wizard
@@ -149,6 +169,19 @@ urlpatterns = [
     path("ui/stats/", ui_stats, name="ui-stats"),
     path("ui/logout/", ui_logout, name="ui-logout"),
     path("ui/workflow-demo/", workflow_widget_demo, name="workflow-demo"),
+
+    # ---------------- Lab Admin (UI) ----------------
+    path("ui/lab-admin/", lab_admin_home, name="lab-admin-home"),
+    path(
+        "ui/lab-admin/create-user/",
+        lab_admin_create_user,
+        name="lab-admin-create-user",
+    ),
+    path(
+        "ui/lab-admin/assign-user/",
+        lab_admin_assign_user,
+        name="lab-admin-assign-user",
+    ),
 
     # ---------------- Samples ----------------
     path("ui/samples/", sample_list, name="sample-list-html"),

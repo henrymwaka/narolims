@@ -1,6 +1,6 @@
 {% extends "lims_core/base.html" %}
-{% load static %}
 {% load metadata_extras %}
+{% load lims_extras %}
 
 {% block title %}Metadata{% endblock %}
 {% block page_title %}Metadata Entry{% endblock %}
@@ -13,9 +13,6 @@ Schema-driven metadata for {{ object_type|title }} #{{ object.id }}
   <form method="post" novalidate>
     {% csrf_token %}
 
-    {# -------------------------------------------- #}
-    {# Accreditation banner + save disable behavior #}
-    {# -------------------------------------------- #}
     {% if any_schema_unlocked %}
       <div class="alert alert-warning" style="margin-bottom:14px;">
         <strong>Accreditation mode safeguard:</strong>
@@ -36,7 +33,7 @@ Schema-driven metadata for {{ object_type|title }} #{{ object.id }}
         <div class="card-header">
           <h3 style="margin:0;">{{ schema.name }}</h3>
           {% if schema.description %}
-            <p class="muted">{{ schema.description }}</p>
+            <p class="muted" style="margin:6px 0 0 0;">{{ schema.description }}</p>
           {% endif %}
           {% if accreditation_mode %}
             <div style="margin-top:8px;">
@@ -51,9 +48,7 @@ Schema-driven metadata for {{ object_type|title }} #{{ object.id }}
 
         <div class="card-body">
           {% if schema_error %}
-            <div class="alert alert-danger">
-              This section has validation errors.
-            </div>
+            <div class="alert alert-danger">This section has validation errors.</div>
           {% endif %}
 
           {% for field in schema.fields.all %}
@@ -63,18 +58,81 @@ Schema-driven metadata for {{ object_type|title }} #{{ object.id }}
             <div class="form-group mb-3">
               <label for="{{ field_code }}">
                 {{ field.label }}
-                {% if field.required %}
-                  <span class="text-danger">*</span>
-                {% endif %}
+                {% if field.required %}<span class="text-danger">*</span>{% endif %}
               </label>
 
-              {# Renderer contract: each renderer outputs ONLY the control #}
-              {% include field.renderer_template with
-                   field=field
-                   value=field_value
-                   values=values
-                   disable_submit=disable_submit
-              %}
+              {% if field.field_type == "text" %}
+                <input
+                  type="text"
+                  id="{{ field_code }}"
+                  name="{{ field_code }}"
+                  value="{{ field_value|default_if_none:'' }}"
+                  style="width:100%; padding:8px; border:1px solid #ccc; border-radius:6px;"
+                  {% if disable_submit %}disabled aria-disabled="true"{% endif %}
+                />
+
+              {% elif field.field_type == "number" %}
+                <input
+                  type="number"
+                  id="{{ field_code }}"
+                  name="{{ field_code }}"
+                  value="{{ field_value|default_if_none:'' }}"
+                  step="any"
+                  style="width:100%; padding:8px; border:1px solid #ccc; border-radius:6px;"
+                  {% if disable_submit %}disabled aria-disabled="true"{% endif %}
+                />
+
+              {% elif field.field_type == "date" %}
+                <input
+                  type="date"
+                  id="{{ field_code }}"
+                  name="{{ field_code }}"
+                  value="{{ field_value|default_if_none:'' }}"
+                  style="width:100%; padding:8px; border:1px solid #ccc; border-radius:6px;"
+                  {% if disable_submit %}disabled aria-disabled="true"{% endif %}
+                />
+
+              {% elif field.field_type == "boolean" %}
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <input
+                    type="checkbox"
+                    id="{{ field_code }}"
+                    name="{{ field_code }}"
+                    value="1"
+                    {% if field_value %}checked{% endif %}
+                    {% if disable_submit %}disabled aria-disabled="true"{% endif %}
+                  />
+                  <span class="muted">Yes</span>
+                </div>
+
+              {% elif field.field_type == "choice" %}
+                <select
+                  id="{{ field_code }}"
+                  name="{{ field_code }}"
+                  style="width:100%; padding:8px; border:1px solid #ccc; border-radius:6px;"
+                  {% if disable_submit %}disabled aria-disabled="true"{% endif %}
+                >
+                  <option value="">-- Select --</option>
+                  {% for opt in field.choice_options %}
+                    <option
+                      value="{{ opt.0 }}"
+                      {% if field_value|stringformat:"s" == opt.0|stringformat:"s" %}selected{% endif %}
+                    >
+                      {{ opt.1 }}
+                    </option>
+                  {% endfor %}
+                </select>
+
+              {% else %}
+                <input
+                  type="text"
+                  id="{{ field_code }}"
+                  name="{{ field_code }}"
+                  value="{{ field_value|default_if_none:'' }}"
+                  style="width:100%; padding:8px; border:1px solid #ccc; border-radius:6px;"
+                  {% if disable_submit %}disabled aria-disabled="true"{% endif %}
+                />
+              {% endif %}
 
               {% if schema_error %}
                 {% with missing=schema_error|get_item:'missing' %}
@@ -102,9 +160,7 @@ Schema-driven metadata for {{ object_type|title }} #{{ object.id }}
       <button type="submit" class="btn btn-primary" {% if disable_submit %}disabled aria-disabled="true"{% endif %}>
         Save Metadata
       </button>
-      <a href="javascript:history.back()" class="btn btn-secondary">
-        Cancel
-      </a>
+      <a href="javascript:history.back()" class="btn btn-secondary">Cancel</a>
     </div>
   </form>
 </div>

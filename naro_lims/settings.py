@@ -16,7 +16,7 @@ from decouple import config
 import os
 import sys
 
-
+CONFIG_PACK_DEFAULT = os.environ.get("CONFIG_PACK_DEFAULT", "default")
 # ===============================================================
 # Base paths
 # ===============================================================

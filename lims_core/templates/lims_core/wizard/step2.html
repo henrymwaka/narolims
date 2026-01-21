@@ -1,33 +1,129 @@
+{# lims_core/templates/lims_core/wizard/step2.html #}
 {% extends "lims_core/base.html" %}
-{% block content %}
-<div class="container" style="max-width: 980px; margin: 0 auto; padding: 24px;">
-  <h1 style="margin-bottom: 6px;">Review and apply</h1>
-  <p style="opacity: 0.8; margin-top: 0;">
-    Confirm the details below. Applying will create the project (and placeholder samples if selected).
-  </p>
 
-  {% if last_error %}
-    <div style="padding: 12px; border-radius: 12px; margin: 12px 0; border: 1px solid rgba(255,80,80,.35);">
-      <strong>Last error:</strong> {{ last_error }}
+{% block page_title %}NARO LIMS{% endblock %}
+{% block card_title %}Review and apply{% endblock %}
+{% block card_meta %}
+  Confirm the details below. Applying will create the project (and placeholder samples if selected).
+{% endblock %}
+
+{% block content %}
+
+  {% if error %}
+    <div class="alert danger" style="margin-bottom:12px;">
+      <strong>Apply failed:</strong> {{ error }}
     </div>
   {% endif %}
 
-  <div class="card" style="padding: 18px; border-radius: 14px;">
-    <h3 style="margin-top: 0;">Draft summary</h3>
+  {% if draft.last_error %}
+    <div class="alert warning" style="margin-bottom:12px;">
+      <strong>Last error:</strong> {{ draft.last_error }}
+    </div>
+  {% endif %}
 
-    <pre style="white-space: pre-wrap; opacity: 0.9;">{{ payload|safe }}</pre>
+  <div class="card" style="padding:14px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:#fff;margin-bottom:12px;">
+    <div style="font-weight:700;margin-bottom:10px;">Draft summary</div>
+
+    <div style="display:grid;grid-template-columns: 1fr 2fr;gap:8px 14px;max-width:980px;">
+      <div style="opacity:.8;">Draft ID</div>
+      <div><code>{{ draft.id }}</code></div>
+
+      <div style="opacity:.8;">Laboratory</div>
+      <div>
+        {% if draft.payload.laboratory_code or draft.payload.laboratory_name %}
+          <b>{{ draft.payload.laboratory_code }}</b> {{ draft.payload.laboratory_name }}
+        {% else %}
+          <span style="opacity:.75;">Lab linked to draft (ID {{ draft.laboratory_id }})</span>
+        {% endif %}
+      </div>
+
+      <div style="opacity:.8;">Project name</div>
+      <div>
+        {% if project.name %}
+          <b>{{ project.name }}</b>
+        {% else %}
+          <span style="opacity:.75;">Missing project name in draft payload</span>
+        {% endif %}
+      </div>
+
+      <div style="opacity:.8;">Description</div>
+      <div>
+        {% if project.description %}
+          {{ project.description }}
+        {% else %}
+          <span style="opacity:.75;">None</span>
+        {% endif %}
+      </div>
+
+      <div style="opacity:.8;">Workflow template</div>
+      <div>
+        {% if draft.payload.template %}
+          <code>{{ draft.payload.template.workflow_code|default:"DEFAULT" }}</code>
+          <span style="opacity:.8;">{{ draft.payload.template.workflow_name|default:"Default workflow" }}</span>
+          <span style="opacity:.65;">({{ draft.payload.template.workflow_version|default:"v1" }})</span>
+        {% else %}
+          <code>DEFAULT</code> <span style="opacity:.8;">Default workflow</span> <span style="opacity:.65;">(v1)</span>
+        {% endif %}
+      </div>
+    </div>
   </div>
 
-  <form method="post" style="margin-top: 16px;">
+  <form method="post" style="margin-top:10px;">
     {% csrf_token %}
-    <div style="display:flex; gap:10px;">
-      <a href="{% url 'lims_core:wizard:step1' %}" class="button" style="padding: 10px 14px; border-radius: 10px;">
-        Back
-      </a>
-      <button type="submit" class="button primary" style="padding: 10px 14px; border-radius: 10px;">
-        Apply draft
-      </button>
+
+    <div class="card" style="padding:14px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:#fff;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:10px;">Optional: create placeholder samples</div>
+
+      <div style="display:grid;grid-template-columns: 1fr 2fr;gap:10px 14px;max-width:980px;">
+        <label style="display:flex;align-items:center;gap:10px;">
+          <input
+            type="checkbox"
+            name="create_placeholders"
+            value="1"
+            {% if samples.create_placeholders %}checked{% endif %}
+          >
+          <span>Create placeholders</span>
+        </label>
+        <div style="opacity:.8;">
+          If enabled, the system will generate empty samples that can be filled later.
+        </div>
+
+        <div style="opacity:.8;">Placeholder count</div>
+        <div>
+          <input
+            type="number"
+            name="count"
+            min="0"
+            max="5000"
+            value="{{ samples.count|default:0 }}"
+            style="width:160px;"
+          >
+          <span style="opacity:.75;margin-left:10px;">Max 5000</span>
+        </div>
+
+        <div style="opacity:.8;">Sample type</div>
+        <div>
+          <select name="sample_type" style="min-width:240px;">
+            {% with st=samples.sample_type|default:"test" %}
+              <option value="soil" {% if st == "soil" %}selected{% endif %}>soil</option>
+              <option value="plant" {% if st == "plant" %}selected{% endif %}>plant</option>
+              <option value="water" {% if st == "water" %}selected{% endif %}>water</option>
+              <option value="food" {% if st == "food" %}selected{% endif %}>food</option>
+              <option value="test" {% if st == "test" %}selected{% endif %}>test</option>
+            {% endwith %}
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;opacity:.75;">
+        For your soil NPK example: set sample type to <b>soil</b> and count to <b>10</b>, then apply.
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <a href="{% url 'lims_core:wizard:step1' %}" style="text-decoration:none;">Back</a>
+      <button class="btn primary" type="submit">Apply draft</button>
     </div>
   </form>
-</div>
+
 {% endblock %}

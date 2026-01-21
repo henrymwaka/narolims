@@ -10,18 +10,18 @@
   <meta name="csrf-token" content="{{ csrf_token }}">
 
   {# ResLab theme first: tokens -> components -> layout #}
-  <link rel="stylesheet" href="{% static 'lims_core/css/reslab_tokens.css' %}?v=20251230d">
-  <link rel="stylesheet" href="{% static 'lims_core/css/reslab_components.css' %}?v=20251230d">
-  <link rel="stylesheet" href="{% static 'lims_core/css/reslab_layout.css' %}?v=20251230d">
+  <link rel="stylesheet" href="{% static 'lims_core/css/reslab_tokens.css' %}?v=20260120a">
+  <link rel="stylesheet" href="{% static 'lims_core/css/reslab_components.css' %}?v=20260120a">
+  <link rel="stylesheet" href="{% static 'lims_core/css/reslab_layout.css' %}?v=20260120a">
 
   {# Existing CSS (kept). Workflows after components so it can use tokens #}
-  <link rel="stylesheet" href="{% static 'lims_core/css/workflows.css' %}?v=20251230d">
+  <link rel="stylesheet" href="{% static 'lims_core/css/workflows.css' %}?v=20260120a">
 
   {# App-specific tweaks last #}
-  <link rel="stylesheet" href="{% static 'lims_core/css/app.css' %}?v=20251230d">
+  <link rel="stylesheet" href="{% static 'lims_core/css/app.css' %}?v=20260120a">
 
   {# Final overrides to prevent dark-scope bleed into light content #}
-  <link rel="stylesheet" href="{% static 'lims_core/css/reslab_overrides.css' %}?v=20251230d">
+  <link rel="stylesheet" href="{% static 'lims_core/css/reslab_overrides.css' %}?v=20260120a">
 
   {# Page-specific extra CSS links go here (no <style> blocks) #}
   {% block extra_head %}{% endblock %}
@@ -51,6 +51,19 @@
         </nav>
       </div>
 
+      {% if user.is_authenticated %}
+        {% if user.is_staff or user.is_superuser %}
+          <div class="side-section">
+            <div class="side-title">Configuration</div>
+            <nav class="side-nav">
+              <a class="side-link" href="/lims/labconfig/manage/"><span>Lab configuration</span><span class="meta">Wizard</span></a>
+              <a class="side-link" href="/lims/ui/lab-admin/"><span>Lab Admin</span><span class="meta">UI</span></a>
+              <a class="side-link" href="/admin/"><span>Admin</span><span class="meta">Django</span></a>
+            </nav>
+          </div>
+        {% endif %}
+      {% endif %}
+
       <div class="side-section">
         <div class="side-title">Public</div>
         <nav class="side-nav">
@@ -73,9 +86,6 @@
 
         <div class="row gap-10 wrap">
           {% if user.is_authenticated %}
-            {% if user.is_staff or user.is_superuser %}
-              <a class="btn ghost" href="/admin/">Admin</a>
-            {% endif %}
             <a class="btn primary" href="/lims/ui/logout/?next=/lims/">Logout</a>
           {% else %}
             <a class="btn primary" href="/api/auth/login/?next=/lims/ui/">Login</a>
@@ -107,6 +117,19 @@
         </nav>
       </div>
 
+      {% if user.is_authenticated %}
+        {% if user.is_staff or user.is_superuser %}
+          <div class="side-section">
+            <div class="side-title">Configuration</div>
+            <nav class="side-nav">
+              <a class="side-link" href="/lims/labconfig/manage/"><span>Lab configuration</span><span class="meta">Wizard</span></a>
+              <a class="side-link" href="/lims/ui/lab-admin/"><span>Lab Admin</span><span class="meta">UI</span></a>
+              <a class="side-link" href="/admin/"><span>Admin</span><span class="meta">Django</span></a>
+            </nav>
+          </div>
+        {% endif %}
+      {% endif %}
+
       <div class="side-section">
         <div class="side-title">Public</div>
         <nav class="side-nav">
@@ -129,9 +152,6 @@
 
         <div class="row gap-10 wrap">
           {% if user.is_authenticated %}
-            {% if user.is_staff or user.is_superuser %}
-              <a class="btn ghost" href="/admin/">Admin</a>
-            {% endif %}
             <a class="btn primary" href="/lims/ui/logout/?next=/lims/">Logout</a>
           {% else %}
             <a class="btn primary" href="/api/auth/login/?next=/lims/ui/">Login</a>
@@ -156,7 +176,7 @@
           <div class="right-actions">
             <div class="quick" title="Client-side quick jump (optional)">
               <span class="qtag">Quick</span>
-              <input id="quickJump" type="text" placeholder="Type: samples, batches, stats, docs" autocomplete="off">
+              <input id="quickJump" type="text" placeholder="Type: samples, batches, stats, doc" autocomplete="off">
             </div>
 
             {% if user.is_authenticated %}
@@ -188,7 +208,7 @@
     </section>
   </div>
 
-  <script src="{% static 'lims_core/js/workflow.js' %}?v=20251230d"></script>
+  <script src="{% static 'lims_core/js/workflow.js' %}?v=20260120a"></script>
 
   <script>
     (function(){
@@ -221,9 +241,15 @@
           "stats": "/lims/ui/stats/",
           "workflow": "/lims/ui/workflow-demo/",
           "docs": "/lims/docs/",
+          "doc": "/lims/docs/",
           "features": "/lims/features/",
           "updates": "/lims/updates/",
-          "health": "/lims/health/"
+          "health": "/lims/health/",
+          "labconfig": "/lims/labconfig/manage/",
+          "config": "/lims/labconfig/manage/",
+          "labadmin": "/lims/ui/lab-admin/",
+          "lab admin": "/lims/ui/lab-admin/",
+          "admin": "/admin/"
         };
         q.addEventListener("keydown", (e) => {
           if(e.key !== "Enter") return;

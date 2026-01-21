@@ -1,0 +1,66 @@
+{% extends "lims_core/base.html" %}
+{% block card_title %}Lab configuration{% endblock %}
+{% block card_meta %}Create labs, edit profiles, and assign workflows per lab{% endblock %}
+
+{% block content %}
+<div class="stack gap-16">
+
+  <div class="row wrap gap-10" style="justify-content: space-between; align-items: center;">
+    <div>
+      <div style="font-weight:800; font-size: 16px;">Manage laboratories</div>
+      <div style="color: rgba(0,0,0,.65); font-size: 13px;">
+        Configure existing labs using the wizard. Create labs is restricted.
+      </div>
+    </div>
+
+    <div class="row gap-10 wrap">
+      {% if can_create %}
+        <a class="btn primary" href="{% url 'lims_core:labconfig_wizard:create_lab' %}">Create new lab</a>
+      {% endif %}
+      <a class="btn" href="/lims/ui/workspace/">Back to workspace</a>
+    </div>
+  </div>
+
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: 14px 16px; font-weight: 800; border-bottom: 1px solid rgba(0,0,0,.08);">
+      Laboratories in scope
+    </div>
+
+    <div style="padding: 10px 16px;">
+      {% if labs %}
+        <table style="width:100%; border-collapse: collapse;">
+          <thead>
+            <tr style="text-align:left; font-size: 12px; color: rgba(0,0,0,.65);">
+              <th style="padding: 10px 8px;">Institute</th>
+              <th style="padding: 10px 8px;">Code</th>
+              <th style="padding: 10px 8px;">Name</th>
+              <th style="padding: 10px 8px;">Status</th>
+              <th style="padding: 10px 8px; width: 220px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for lab in labs %}
+              <tr style="border-top: 1px solid rgba(0,0,0,.06);">
+                <td style="padding: 10px 8px;">{{ lab.institute.code }} | {{ lab.institute.name }}</td>
+                <td style="padding: 10px 8px; font-weight: 800;">{{ lab.code }}</td>
+                <td style="padding: 10px 8px;">{{ lab.name }}</td>
+                <td style="padding: 10px 8px;">
+                  {% if lab.is_active %}<span class="pill">Active</span>{% else %}<span class="pill">Inactive</span>{% endif %}
+                </td>
+                <td style="padding: 10px 8px;">
+                  <a class="btn" href="{% url 'lims_core:labconfig_wizard:start_for_lab' lab.id %}">Configure</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div style="padding: 14px; color: rgba(0,0,0,.65);">
+          No laboratories are visible to your account. Assign a lab role, or use a superuser.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

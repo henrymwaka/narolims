@@ -1,0 +1,71 @@
+{% extends "lims_core/base.html" %}
+
+{% block page_title %}Lab configuration{% endblock %}
+{% block card_title %}Review and apply{% endblock %}
+{% block card_meta %}Apply changes atomically to {{ lab.code }} | {{ lab.name }}{% endblock %}
+
+{% block content %}
+  {% if error %}
+    <div style="padding:12px;border:1px solid rgba(255,80,80,.35);border-radius:12px;margin-bottom:12px;">
+      <b>Error:</b> {{ error }}
+    </div>
+  {% endif %}
+
+  <div style="display:grid;gap:12px;max-width:980px;">
+    <div style="padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:14px;">
+      <div style="font-weight:800;margin-bottom:8px;">Laboratory profile</div>
+
+      <div><b>lab_type:</b> {{ profile.lab_type }}</div>
+      <div><b>accreditation_mode:</b> {{ profile.accreditation_mode }}</div>
+      <div><b>schema_code:</b> {{ profile.schema_code }}</div>
+      <div><b>schema_version:</b> {{ profile.schema_version }}</div>
+      <div><b>default_analysis_context_id:</b> {{ profile.default_analysis_context_id|default:"" }}</div>
+
+      {% if profile.description %}
+        <div style="margin-top:8px;"><b>Description:</b><br>{{ profile.description }}</div>
+      {% endif %}
+    </div>
+
+    <div style="padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:14px;">
+      <div style="font-weight:800;margin-bottom:8px;">Pack assignments</div>
+
+      {% if assignment_rows %}
+        <div style="overflow:auto;">
+          <table style="width:100%;border-collapse:collapse;min-width:760px;">
+            <thead>
+              <tr style="text-align:left;">
+                <th style="padding:8px;">Enabled</th>
+                <th style="padding:8px;">Kind</th>
+                <th style="padding:8px;">Code</th>
+                <th style="padding:8px;">Name</th>
+                <th style="padding:8px;">Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in assignment_rows %}
+                <tr style="border-top:1px solid rgba(255,255,255,.08);">
+                  <td style="padding:8px;">{{ a.enabled }}</td>
+                  <td style="padding:8px;">{{ a.kind|default:"-" }}</td>
+                  <td style="padding:8px;">
+                    {% if a.code %}<code>{{ a.code }}</code>{% else %}{{ a.pack_id }}{% endif %}
+                  </td>
+                  <td style="padding:8px;">{{ a.name|default:"-" }}</td>
+                  <td style="padding:8px;">{{ a.priority }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div style="opacity:.8;">No pack assignments in this draft.</div>
+      {% endif %}
+    </div>
+
+    <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;">
+      {% csrf_token %}
+      <button type="submit" class="btn primary">Apply configuration</button>
+      <a class="btn" href="{% url 'lims_core:labconfig_wizard:step3' draft.id %}">Back</a>
+      <a class="btn" href="/lims/ui/">Cancel</a>
+    </form>
+  </div>
+{% endblock %}

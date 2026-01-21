@@ -1,33 +1,20 @@
 {#
 REQUIRES:
 - field
-- field_code
-- field_value
 - errors
 - schema_error
+- field_code
+- field_value
 #}
-
-<div class="form-check mb-3">
+<div class="form-check">
   <input
+    class="form-check-input"
     type="checkbox"
-    id="{{ field_code }}"
-    name="{{ field_code }}"
-    class="form-check-input {% if errors or schema_error %}is-invalid{% endif %}"
-    {% if field_value %}checked{% endif %}
-  >
-
-  <label class="form-check-label" for="{{ field_code }}">
-    {{ field.label }}
-    {% if field.required %}<span class="text-danger">*</span>{% endif %}
-  </label>
-
-  {% if errors %}
-    <div class="invalid-feedback d-block">
-      {{ errors|join:", " }}
-    </div>
-  {% elif schema_error %}
-    <div class="invalid-feedback d-block">
-      {{ schema_error|join:", " }}
-    </div>
-  {% endif %}
+    id="{{ field.code }}"
+    name="{{ field.code }}"
+    value="1"
+    {% if value %}checked{% endif %}
+    {% if disable_submit %}disabled aria-disabled="true"{% endif %}
+  />
+  <label class="form-check-label" for="{{ field.code }}">Yes</label>
 </div>

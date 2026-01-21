@@ -1,0 +1,30 @@
+wizard_id: project_wizard_v1
+title: Project Wizard
+steps:
+  - code: step1
+    title: Start
+    template: lims_core/wizard/step1.html
+
+  - code: laboratory
+    title: Laboratory
+    template: lims_core/wizard/step1_laboratory.html
+
+  - code: template
+    title: Template
+    template: lims_core/wizard/step2_template.html
+
+  - code: project
+    title: Project details
+    template: lims_core/wizard/step3_project.html
+
+  - code: samples
+    title: Samples
+    template: lims_core/wizard/step4_samples.html
+
+  - code: review
+    title: Review
+    template: lims_core/wizard/step5_review.html
+
+  - code: done
+    title: Done
+    template: lims_core/wizard/done.html
