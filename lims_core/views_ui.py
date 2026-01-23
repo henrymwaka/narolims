@@ -13,6 +13,7 @@ from django.db.models import Q
 from django.http import JsonResponse, Http404, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
 
 from .models.core import (
     Sample,
@@ -50,6 +51,27 @@ def _user_lab_ids(user) -> list[int]:
         .values_list("laboratory_id", flat=True)
         .distinct()
     )
+
+
+def _require_lab_in_scope(*, user, laboratory_id: int) -> None:
+    """
+    Enforce that a non-staff user can only operate within assigned lab scope.
+    Staff and superusers are allowed.
+    """
+    if user.is_staff or user.is_superuser:
+        return
+    lab_ids = _user_lab_ids(user)
+    if int(laboratory_id) not in [int(x) for x in lab_ids]:
+        raise Http404("Laboratory not in scope")
+
+
+def _require_project_in_scope(*, user, project: Project) -> None:
+    """
+    Project scope is derived from project.laboratory.
+    """
+    if not project.laboratory_id:
+        raise Http404("Project has no laboratory assigned")
+    _require_lab_in_scope(user=user, laboratory_id=int(project.laboratory_id))
 
 
 def _user_has_active_projects_in_scope(user, *, lab_ids: list[int] | None = None) -> bool:
@@ -382,6 +404,10 @@ def sample_detail(request, pk: int):
     try:
         sample = get_object_or_404(Sample, pk=pk)
 
+        # enforce scope
+        if sample.project and sample.project.laboratory_id:
+            _require_lab_in_scope(user=request.user, laboratory_id=int(sample.project.laboratory_id))
+
         sla = None
         if compute_runtime_sla:
             try:
@@ -440,6 +466,10 @@ def experiment_detail(request, pk: int):
     try:
         experiment = get_object_or_404(Experiment, pk=pk)
 
+        # enforce scope via project lab
+        if experiment.project and experiment.project.laboratory_id:
+            _require_lab_in_scope(user=request.user, laboratory_id=int(experiment.project.laboratory_id))
+
         # This selector must never be allowed to crash the detail page
         lab_profile = None
         try:
@@ -478,7 +508,7 @@ def experiment_detail(request, pk: int):
 
 
 # ============================================================
-# Batches
+# Batches (canonical intake container)
 # ============================================================
 
 @login_required
@@ -496,7 +526,7 @@ def batch_list(request):
         .order_by("-created_at")
     )
 
-    if lab_ids:
+    if lab_ids and not (request.user.is_staff or request.user.is_superuser):
         qs = qs.filter(laboratory_id__in=lab_ids)
 
     for b in qs:
@@ -514,18 +544,20 @@ def batch_list(request):
 
 @login_required
 def batch_create(request):
-    lab_ids = list(
-        UserRole.objects.filter(user=request.user)
-        .values_list("laboratory_id", flat=True)
-        .distinct()
-    )
+    """
+    Coherent rule:
+    - A batch is created for a project
+    - Laboratory is derived from the project (never trusted from POST)
+    - Scope check is enforced using project.laboratory
+    """
+    lab_ids = _user_lab_ids(request.user)
 
     laboratories = Laboratory.objects.filter(id__in=lab_ids)
     projects = Project.objects.filter(laboratory_id__in=lab_ids)
 
     if request.method == "POST":
-        project_id = request.POST.get("project")
-        if not project_id:
+        project_id_raw = (request.POST.get("project") or "").strip()
+        if not project_id_raw:
             return render(
                 request,
                 "lims_core/batches/create.html",
@@ -536,15 +568,35 @@ def batch_create(request):
                 },
             )
 
+        project = get_object_or_404(Project, pk=int(project_id_raw))
+        _require_project_in_scope(user=request.user, project=project)
+
+        # Derive laboratory from project to prevent mismatches
+        if not project.laboratory_id:
+            return render(
+                request,
+                "lims_core/batches/create.html",
+                {
+                    "laboratories": laboratories,
+                    "projects": projects,
+                    "error": "Selected project has no laboratory assigned.",
+                },
+            )
+
+        batch_code = (request.POST.get("batch_code") or "").strip()
+        if not batch_code:
+            # Safe default. You can make this smarter later (lab code, date, seq).
+            batch_code = "BATCH-%s" % timezone.now().strftime("%Y%m%d-%H%M%S")
+
         batch = SampleBatch.objects.create(
-            laboratory_id=request.POST.get("laboratory"),
-            project_id=project_id,
-            batch_code=request.POST.get("batch_code"),
+            laboratory_id=project.laboratory_id,
+            project_id=project.id,
+            batch_code=batch_code,
             collected_at=request.POST.get("collected_at") or None,
-            collected_by=request.POST.get("collected_by", ""),
-            collection_site=request.POST.get("collection_site", ""),
-            client_name=request.POST.get("client_name", ""),
-            notes=request.POST.get("notes", ""),
+            collected_by=(request.POST.get("collected_by") or "").strip(),
+            collection_site=(request.POST.get("collection_site") or "").strip(),
+            client_name=(request.POST.get("client_name") or "").strip(),
+            notes=(request.POST.get("notes") or "").strip(),
         )
         return redirect(f"/lims/ui/batches/{batch.id}/")
 
@@ -561,6 +613,11 @@ def batch_create(request):
 @login_required
 def batch_detail(request, pk: int):
     batch = get_object_or_404(SampleBatch, pk=pk)
+
+    # enforce scope
+    if batch.laboratory_id:
+        _require_lab_in_scope(user=request.user, laboratory_id=int(batch.laboratory_id))
+
     samples = batch.samples.order_by("sample_id")
 
     lab_profile = None
@@ -582,25 +639,41 @@ def batch_detail(request, pk: int):
 
 @login_required
 def sample_bulk_register(request, batch_id: int):
+    """
+    Coherent rule:
+    - Samples are created inside a batch
+    - If sample_id is blank, the Sample model generates a compliant ID
+    - Scope check is enforced using batch.laboratory
+    """
     batch = get_object_or_404(SampleBatch, pk=batch_id)
+
+    if batch.laboratory_id:
+        _require_lab_in_scope(user=request.user, laboratory_id=int(batch.laboratory_id))
 
     if request.method == "POST":
         sample_ids = request.POST.getlist("sample_id")
         names = request.POST.getlist("name")
         types = request.POST.getlist("sample_type")
 
-        for i in range(len(sample_ids)):
-            if not sample_ids[i]:
+        created = 0
+        for i in range(max(len(sample_ids), len(names), len(types))):
+            sid = sample_ids[i] if i < len(sample_ids) else ""
+            nm = names[i] if i < len(names) else ""
+            st = types[i] if i < len(types) else ""
+
+            if not (sid or nm or st):
                 continue
 
             Sample.objects.create(
                 laboratory=batch.laboratory,
                 project=batch.project,
                 batch=batch,
-                sample_id=sample_ids[i],
-                name=names[i],
-                sample_type=types[i],
+                sample_id=(sid or ""),      # allow blank, model will generate a unique ID
+                name=(nm or "").strip(),
+                sample_type=(st or "").strip(),
+                status="REGISTERED",
             )
+            created += 1
 
         return redirect(f"/lims/ui/batches/{batch.id}/")
 
