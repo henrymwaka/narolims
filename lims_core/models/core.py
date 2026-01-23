@@ -3,7 +3,7 @@
 default_app_config = "lims_core.apps.LimsCoreConfig"
 
 import re
-from django.db import models, transaction
+from django.db import models, transaction, IntegrityError
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.conf import settings
@@ -235,19 +235,66 @@ class Project(TimeStampedModel):
         blank=True,
     )
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["laboratory", "code"],
+                name="uniq_project_code_per_lab",
+            )
+        ]
+
     def clean(self):
         if self.laboratory_id is None:
             raise ValidationError("Project must be assigned to a laboratory.")
 
-    def _generate_code(self) -> str:
+    def _base_code(self) -> str:
         base = _tokenize(self.name, max_len=18, fallback="PROJECT")
         ymd = timezone.localdate().strftime("%y%m%d")
         return f"{base}{ymd}"
 
+    def _candidate_codes(self):
+        """
+        Yield candidate codes that fit max_length and are stable.
+        First try BASE+YYMMDD, then BASE+YYMMDD01..99.
+        """
+        base = self._base_code()
+        yield base
+
+        # leave room for 2 digits suffix at the end
+        # ensure total <= 50
+        max_len = self._meta.get_field("code").max_length
+        root = base[: max_len - 2]
+        for i in range(1, 100):
+            yield f"{root}{i:02d}"
+
+    def _constraint_is_project_code_per_lab(self, exc: Exception) -> bool:
+        msg = str(exc)
+        return "project_code_per_lab" in msg or "uniq_project_code_per_lab" in msg
+
     def save(self, *args, **kwargs):
-        if _is_blank(self.code):
-            self.code = self._generate_code()
-        return super().save(*args, **kwargs)
+        if not _is_blank(self.code):
+            return super().save(*args, **kwargs)
+
+        # If lab is missing, let clean() fail with a clear message
+        if self.laboratory_id is None:
+            self.full_clean()
+            return super().save(*args, **kwargs)
+
+        # Generate and save with retry to handle races cleanly
+        for candidate in self._candidate_codes():
+            self.code = candidate
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError as exc:
+                if self._constraint_is_project_code_per_lab(exc):
+                    continue
+                raise
+
+        raise ValidationError(
+            "Unable to generate a unique project code. "
+            "Please set Project.code manually."
+        )
 
     def __str__(self):
         return self.name
