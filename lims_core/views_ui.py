@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import traceback
 from pathlib import Path
+from datetime import datetime
 
 from django.conf import settings
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.http import JsonResponse, Http404, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
@@ -30,6 +32,14 @@ from .labs.selectors import get_lab_profile_for_object
 
 # Metadata enforcement (shared with workflow runtime)
 from lims_core.workflows.metadata_gating import check_metadata_gate
+
+# Canonical intake service (single source of truth)
+from lims_core.services.intake import (
+    BatchCreateSpec,
+    create_intake_batch_for_project,
+    bulk_create_samples_for_batch,
+    IntakeError,
+)
 
 
 # ------------------------------------------------------------
@@ -99,6 +109,32 @@ def _wizard_step1_redirect():
         return redirect(reverse("lims_core:wizard:step1"))
     except Exception:
         return redirect("/lims/wizard/step-1/")
+
+
+def _parse_datetime_local(value: str | None):
+    """
+    Parse HTML datetime-local style values.
+    Accepts:
+      - YYYY-MM-DDTHH:MM
+      - YYYY-MM-DDTHH:MM:SS
+      - ISO strings
+    Returns aware datetime in current timezone, or None.
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return None
+
+    try:
+        dt = datetime.fromisoformat(raw)
+    except Exception:
+        return None
+
+    try:
+        if timezone.is_naive(dt):
+            return timezone.make_aware(dt, timezone.get_current_timezone())
+        return dt
+    except Exception:
+        return None
 
 
 # ============================================================
@@ -549,6 +585,7 @@ def batch_create(request):
     - A batch is created for a project
     - Laboratory is derived from the project (never trusted from POST)
     - Scope check is enforced using project.laboratory
+    - Creation routes through the canonical intake service
     """
     lab_ids = _user_lab_ids(request.user)
 
@@ -571,7 +608,6 @@ def batch_create(request):
         project = get_object_or_404(Project, pk=int(project_id_raw))
         _require_project_in_scope(user=request.user, project=project)
 
-        # Derive laboratory from project to prevent mismatches
         if not project.laboratory_id:
             return render(
                 request,
@@ -583,22 +619,43 @@ def batch_create(request):
                 },
             )
 
-        batch_code = (request.POST.get("batch_code") or "").strip()
-        if not batch_code:
-            # Safe default. You can make this smarter later (lab code, date, seq).
-            batch_code = "BATCH-%s" % timezone.now().strftime("%Y%m%d-%H%M%S")
+        try:
+            batch_spec = BatchCreateSpec(
+                laboratory_id=int(project.laboratory_id),  # derived from project
+                project_id=int(project.id),
+                batch_code=(request.POST.get("batch_code") or "").strip(),  # optional
+                collected_at=_parse_datetime_local(request.POST.get("collected_at")),
+                collected_by=(request.POST.get("collected_by") or "").strip(),
+                collection_site=(request.POST.get("collection_site") or "").strip(),
+                client_name=(request.POST.get("client_name") or "").strip(),
+                notes=(request.POST.get("notes") or "").strip(),
+            )
 
-        batch = SampleBatch.objects.create(
-            laboratory_id=project.laboratory_id,
-            project_id=project.id,
-            batch_code=batch_code,
-            collected_at=request.POST.get("collected_at") or None,
-            collected_by=(request.POST.get("collected_by") or "").strip(),
-            collection_site=(request.POST.get("collection_site") or "").strip(),
-            client_name=(request.POST.get("client_name") or "").strip(),
-            notes=(request.POST.get("notes") or "").strip(),
-        )
-        return redirect(f"/lims/ui/batches/{batch.id}/")
+            batch = create_intake_batch_for_project(project=project, batch_spec=batch_spec)
+            return redirect(f"/lims/ui/batches/{batch.id}/")
+
+        except (ValidationError, IntakeError) as e:
+            return render(
+                request,
+                "lims_core/batches/create.html",
+                {
+                    "laboratories": laboratories,
+                    "projects": projects,
+                    "error": str(e),
+                },
+            )
+        except Exception:
+            tb = traceback.format_exc()
+            print("\n[BATCH_CREATE_500]\n" + tb, flush=True)
+            return render(
+                request,
+                "lims_core/batches/create.html",
+                {
+                    "laboratories": laboratories,
+                    "projects": projects,
+                    "error": "Batch creation failed. Use ?trace=1 for details.",
+                },
+            )
 
     return render(
         request,
@@ -642,8 +699,10 @@ def sample_bulk_register(request, batch_id: int):
     """
     Coherent rule:
     - Samples are created inside a batch
-    - If sample_id is blank, the Sample model generates a compliant ID
+    - If the UI provides an external label, it maps to external_id
+    - Sample.sample_id is generated by the model (leave blank)
     - Scope check is enforced using batch.laboratory
+    - Creation routes through the canonical intake service
     """
     batch = get_object_or_404(SampleBatch, pk=batch_id)
 
@@ -655,27 +714,52 @@ def sample_bulk_register(request, batch_id: int):
         names = request.POST.getlist("name")
         types = request.POST.getlist("sample_type")
 
-        created = 0
+        rows: list[dict] = []
         for i in range(max(len(sample_ids), len(names), len(types))):
             sid = sample_ids[i] if i < len(sample_ids) else ""
             nm = names[i] if i < len(names) else ""
             st = types[i] if i < len(types) else ""
 
+            sid = (sid or "").strip()
+            nm = (nm or "").strip()
+            st = (st or "").strip()
+
             if not (sid or nm or st):
                 continue
 
-            Sample.objects.create(
-                laboratory=batch.laboratory,
-                project=batch.project,
-                batch=batch,
-                sample_id=(sid or ""),      # allow blank, model will generate a unique ID
-                name=(nm or "").strip(),
-                sample_type=(st or "").strip(),
-                status="REGISTERED",
+            # Treat user-entered "sample_id" as an external label, not the system sample_id.
+            rows.append(
+                {
+                    "external_id": sid,
+                    "name": nm,
+                    "sample_type": st,
+                }
             )
-            created += 1
 
-        return redirect(f"/lims/ui/batches/{batch.id}/")
+        try:
+            if rows:
+                bulk_create_samples_for_batch(batch=batch, rows=rows)
+            return redirect(f"/lims/ui/batches/{batch.id}/")
+
+        except (ValidationError, IntakeError) as e:
+            return render(
+                request,
+                "lims_core/samples/bulk_register.html",
+                {"batch": batch, "error": str(e)},
+            )
+        except Exception:
+            tb = traceback.format_exc()
+            print("\n[SAMPLE_BULK_REGISTER_500]\n" + tb, flush=True)
+            if request.GET.get("trace") == "1":
+                return HttpResponse(
+                    "<h1>/lims/ui/batches/%s/bulk-register crashed</h1><pre>%s</pre>" % (batch_id, tb),
+                    status=500,
+                )
+            return render(
+                request,
+                "lims_core/samples/bulk_register.html",
+                {"batch": batch, "error": "Bulk register failed."},
+            )
 
     return render(
         request,
