@@ -17,6 +17,7 @@ import os
 import sys
 
 CONFIG_PACK_DEFAULT = os.environ.get("CONFIG_PACK_DEFAULT", "default")
+
 # ===============================================================
 # Base paths
 # ===============================================================
@@ -57,33 +58,39 @@ LOGOUT_REDIRECT_URL = "/"
 # ---------------------------------------------------------------
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # HSTS (start low, increase later)
 SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=3600, cast=int)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = config("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False, cast=bool)
 SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=False, cast=bool)
+
 # Avoid redirect loops because Cloudflare terminates TLS at the edge
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
 
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=True, cast=bool)
 CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=True, cast=bool)
 
+# Trust your main host plus the shared reslab.dev subdomain family
 CSRF_TRUSTED_ORIGINS = [
     "https://narolims.reslab.dev",
     "https://www.narolims.reslab.dev",
+    "https://*.reslab.dev",
 ]
 
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "Lax"
 
 # ---------------------------------------------------------------
-# Test safety: disable HTTPS redirect + secure cookies during tests
-# (prevents 301 -> https://testserver/... in pytest/DRF client)
+# Test safety:
+# - disable HTTPS redirect + secure cookies during tests
+# - broaden detection to catch pytest runs that use Postgres test DBs
 # ---------------------------------------------------------------
 RUNNING_TESTS = (
     "PYTEST_CURRENT_TEST" in os.environ
     or "pytest" in sys.argv
     or "test" in sys.argv
     or os.environ.get("DJANGO_ENV", "").lower() in {"ci", "test"}
+    or os.environ.get("DJANGO_SETTINGS_MODULE", "").endswith(".test")
 )
 
 if RUNNING_TESTS:
@@ -91,6 +98,19 @@ if RUNNING_TESTS:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
     SECURE_HSTS_SECONDS = 0
+
+
+# ===============================================================
+# NARO-LIMS baseline configuration (template lab for auto-provision)
+# ===============================================================
+# Used by lims_core.signals.ensure_default_metadata_schemas to clone baseline schemas.
+# Keep it configurable so the same LIMS can run outside NARO.
+#
+# Set via env when you want:
+#   export NAROLIMS_BASELINE_LAB_CODE="NARL-GENERAL"
+#
+# If unset, signals.py will auto-pick the first profile that already has schemas.
+NAROLIMS_BASELINE_LAB_CODE = config("NAROLIMS_BASELINE_LAB_CODE", default="NARL-GENERAL")
 
 
 # ===============================================================

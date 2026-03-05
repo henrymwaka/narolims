@@ -1,5 +1,5 @@
 /* lims_core/static/lims_core/css/reslab_layout.css
-   ResLab SaaS layout (v2)
+   ResLab SaaS layout (v4) - widened content + better real estate
 */
 
 .app{
@@ -9,7 +9,7 @@
 
 /* Sidebar */
 .sidebar{
-  width: 280px;
+  width: 288px;
   background:
     radial-gradient(520px 320px at 18% 10%, var(--sideGlow), transparent 55%),
     linear-gradient(180deg, var(--sideBg) 0%, var(--sideBg2) 100%);
@@ -106,6 +106,7 @@
   min-width: 0;
 }
 
+/* Topbar */
 .topbar{
   position: sticky;
   top: 0;
@@ -121,6 +122,10 @@
   justify-content:space-between;
   padding: 14px 18px;
   gap: 16px;
+
+  /* Match the content width so the topbar doesn’t feel off */
+  max-width: 1320px;
+  margin: 0 auto;
 }
 
 .burger{
@@ -174,13 +179,18 @@
   min-width: 240px;
 }
 
-/* Content card */
+/* =========================
+   Content sizing (wider SaaS)
+   ========================= */
+
 .content{
   padding: 18px;
 }
 
+/* Default: use more screen real estate than 1040px */
 .page-card{
-  max-width: 1040px;
+  width: 100%;
+  max-width: 1320px;
   margin: 0 auto;
   border-radius: var(--radiusLg);
 }
@@ -209,7 +219,7 @@
 }
 
 .page-body{
-  padding: 18px;
+  padding: 20px;
 }
 
 /* Footer */
@@ -219,20 +229,34 @@
   font-size: 12px;
 }
 
+/* Let the footer align with the main content width */
 .footer-inner{
-  max-width: 1040px;
+  max-width: 1320px;
   margin: 0 auto;
   display:flex;
   justify-content:space-between;
   gap: 12px;
 }
 
+/* Very wide screens: expand further but keep it sane */
+@media (min-width: 1600px){
+  .page-card{ max-width: 1480px; }
+  .footer-inner{ max-width: 1480px; }
+  .topbar-inner{ max-width: 1480px; }
+}
+
 /* Drawer (mobile) */
 .drawer, .drawer-backdrop{ display:none; }
 
-/* Responsive */
+/* Tablets and below: keep it comfortable */
 @media (max-width: 1020px){
   .sidebar{ display:none; }
   .burger{ display:inline-flex; }
   .quick input{ min-width: 160px; }
+
+  .content{ padding: 16px; }
+  .page-card{ max-width: 100%; }
+  .page-body{ padding: 16px; }
+  .footer-inner{ max-width: 100%; }
+  .topbar-inner{ max-width: 100%; }
 }

@@ -32,17 +32,16 @@ def _safe_audit(*, user, laboratory, action: str, meta: dict | None = None):
 
 
 @transaction.atomic
-def apply_project_draft(*, draft: ProjectDraft, user):
+def apply_project_draft_result(*, draft: ProjectDraft, user) -> dict:
     """
-    Converts a ProjectDraft into real system objects using the canonical intake service.
+    Full apply: returns a dict containing created objects.
 
-    Outcome:
-    - Project is created in the selected laboratory
-    - An "intake" SampleBatch is created for the project (always)
-    - Optional placeholder samples are created under that batch (if requested)
-
-    This makes the wizard consistent with batch-based intake and prevents the UI from drifting
-    into multiple, conflicting creation pathways.
+    Returns:
+      {
+        "project": Project,
+        "batch": SampleBatch,
+        "samples": list[Sample]
+      }
     """
     payload = draft.payload or {}
 
@@ -72,7 +71,6 @@ def apply_project_draft(*, draft: ProjectDraft, user):
     if count > 5000:
         count = 5000
 
-    # Canonical creation (single source of truth)
     result = create_project_with_intake_batch(
         project_spec=ProjectCreateSpec(
             name=name,
@@ -80,11 +78,9 @@ def apply_project_draft(*, draft: ProjectDraft, user):
             laboratory_id=int(lab.id),
             created_by_user_id=getattr(user, "id", None),
         ),
-        # Keep batch defaults for now (no extra UI fields yet).
-        # Later, Step 2 can capture collected_by/site/date/client/notes and pass them here.
         batch_spec_overrides=BatchCreateSpec(
             laboratory_id=int(lab.id),
-            project_id=0,  # ignored by intake service overrides builder; kept for clarity
+            project_id=0,  # ignored by intake service overrides builder
         ),
         placeholder_count=count,
         placeholder_sample_type=sample_type,
@@ -95,7 +91,6 @@ def apply_project_draft(*, draft: ProjectDraft, user):
     batch = result["batch"]
     created_samples = result.get("samples") or []
 
-    # Mark applied
     draft.last_error = ""
     draft.mark_applied()
 
@@ -117,4 +112,13 @@ def apply_project_draft(*, draft: ProjectDraft, user):
         },
     )
 
-    return project
+    return {"project": project, "batch": batch, "samples": created_samples}
+
+
+@transaction.atomic
+def apply_project_draft(*, draft: ProjectDraft, user):
+    """
+    Backwards compatible API: returns ONLY the Project.
+    Tests and older callers rely on this.
+    """
+    return apply_project_draft_result(draft=draft, user=user)["project"]

@@ -10,7 +10,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from lims_core.models.core import Laboratory, UserRole
+from lims_core.models.core import Laboratory, UserRole, SampleBatch
 from lims_core.models.drafts import ProjectDraft
 from lims_core.wizard.services import apply_project_draft
 
@@ -49,9 +49,7 @@ def _institutes_from_labs(labs_qs):
     out = []
     for r in rows:
         if r.get("institute_id"):
-            out.append(
-                {"id": r["institute_id"], "name": (r.get("institute__name") or "").strip()}
-            )
+            out.append({"id": r["institute_id"], "name": (r.get("institute__name") or "").strip()})
     return out
 
 
@@ -82,7 +80,6 @@ def _wizard_template_for_step(step_code: str, *, fallback: str) -> str:
         logger.warning("wizard config pack load failed for step=%s; using fallback: %s", step_code, e)
         return fallback
 
-    # cfg may be an object or dict
     if isinstance(cfg, dict):
         steps = cfg.get("steps") or []
     else:
@@ -112,8 +109,6 @@ def _wizard_title_and_step_title(step_code: str) -> tuple[str, str]:
     """
     Optional UX metadata from config packs:
     Returns (wizard_title, step_title). Falls back to empty strings if unavailable.
-
-    Supports object-like and dict-like config/steps.
     """
     try:
         cfg = _load_active_wizard_config()
@@ -148,14 +143,6 @@ def _wizard_title_and_step_title(step_code: str) -> tuple[str, str]:
 
 @login_required
 def step1(request):
-    """
-    Step 1: show Institute (derived from user scope), then allow lab selection within that institute,
-    then capture project basics. Creates a ProjectDraft and redirects to step 2.
-
-    Policy note:
-    - Right now, any user with a role in a lab can create a project for that lab.
-    - If you want "only lab managers", we will enforce that once we inspect UserRole fields.
-    """
     template_name = _wizard_template_for_step("step1", fallback="lims_core/wizard/step1.html")
     wizard_title, step_title = _wizard_title_and_step_title("step1")
 
@@ -221,23 +208,18 @@ def step1(request):
             },
         )
 
-    # Determine selected institute
     selected_institute_id = ""
     if len(institutes) == 1:
         selected_institute_id = str(institutes[0]["id"])
     else:
         selected_institute_id = (request.POST.get("institute_id") or "").strip()
 
-    # Default institute if not provided or invalid
     valid_institute_ids = {str(x["id"]) for x in institutes}
     if not selected_institute_id or selected_institute_id not in valid_institute_ids:
         selected_institute_id = str(institutes[0]["id"])
 
-    # Restrict labs to selected institute (for display and for POST defaults)
     labs_in_institute = labs_qs.filter(institute_id=int(selected_institute_id))
-
     if not labs_in_institute.exists():
-        # Fall back: if institute selection leads to empty, use the first institute that actually has labs
         for inst in institutes:
             q = labs_qs.filter(institute_id=int(inst["id"]))
             if q.exists():
@@ -259,7 +241,7 @@ def step1(request):
                     "wizard_step_title": step_title,
                     "wizard_step_code": "step1",
                     "institutes": institutes,
-                    "laboratories": labs_qs,  # full set, template filters client-side too
+                    "laboratories": labs_qs,
                     "inactive_warning": inactive_warning,
                     "error": "Project name is required.",
                     "form": {
@@ -271,7 +253,6 @@ def step1(request):
                 },
             )
 
-        # Pick lab: must be within user scope AND within selected institute
         try:
             if laboratory_id_raw:
                 laboratory_id = int(laboratory_id_raw)
@@ -289,35 +270,19 @@ def step1(request):
         if laboratory_id not in lab_ids:
             raise Http404("Laboratory not in scope")
 
-        # Enforce institute match
-        lab_obj = get_object_or_404(
-            Laboratory.objects.select_related("institute"), pk=laboratory_id
-        )
+        lab_obj = get_object_or_404(Laboratory.objects.select_related("institute"), pk=laboratory_id)
         if str(lab_obj.institute_id) != str(selected_institute_id):
             raise Http404("Laboratory does not belong to selected institute")
 
         payload = {
             "institute_id": lab_obj.institute_id,
-            "institute_name": getattr(lab_obj.institute, "name", "")
-            if getattr(lab_obj, "institute", None)
-            else "",
+            "institute_name": getattr(lab_obj.institute, "name", "") if getattr(lab_obj, "institute", None) else "",
             "laboratory_id": laboratory_id,
             "laboratory_code": lab_obj.code,
             "laboratory_name": lab_obj.name,
-            "template": {
-                "workflow_code": "DEFAULT",
-                "workflow_name": "Default workflow",
-                "workflow_version": "v1",
-            },
-            "project": {
-                "name": project_name,
-                "description": project_description,
-            },
-            "samples": {
-                "create_placeholders": False,
-                "count": 0,
-                "sample_type": "test",
-            },
+            "template": {"workflow_code": "DEFAULT", "workflow_name": "Default workflow", "workflow_version": "v1"},
+            "project": {"name": project_name, "description": project_description},
+            "samples": {"create_placeholders": False, "count": 0, "sample_type": "test"},
         }
 
         draft = ProjectDraft.objects.create(
@@ -328,7 +293,6 @@ def step1(request):
 
         return redirect(reverse("lims_core:wizard:step2", kwargs={"draft_id": draft.id}))
 
-    # GET
     preselected_lab_id = ""
     if labs_in_institute.count() == 1:
         preselected_lab_id = str(labs_in_institute.first().id)
@@ -341,7 +305,7 @@ def step1(request):
             "wizard_step_title": step_title,
             "wizard_step_code": "step1",
             "institutes": institutes,
-            "laboratories": labs_qs,  # full set, filtered client-side by institute
+            "laboratories": labs_qs,
             "inactive_warning": inactive_warning,
             "form": {
                 "institute_id": selected_institute_id,
@@ -357,6 +321,10 @@ def step1(request):
 def step2(request, draft_id: int):
     """
     Step 2: confirm sample placeholder creation and apply the draft.
+
+    IMPORTANT:
+    apply_project_draft() returns a Project (per tests).
+    Older code may return a dict. We support both to keep UI robust.
     """
     template_name = _wizard_template_for_step("step2", fallback="lims_core/wizard/step2.html")
     wizard_title, step_title = _wizard_title_and_step_title("step2")
@@ -368,7 +336,6 @@ def step2(request, draft_id: int):
     if not lab_id:
         return redirect(reverse("lims_core:wizard:step1"))
 
-    # scope check (non-staff)
     lab_ids = _user_lab_ids(request.user)
     if not (request.user.is_staff or request.user.is_superuser):
         if int(lab_id) not in lab_ids:
@@ -378,12 +345,7 @@ def step2(request, draft_id: int):
     samples_block = payload.get("samples") or {}
 
     if request.method == "POST":
-        create_placeholders = (request.POST.get("create_placeholders") or "") in (
-            "1",
-            "true",
-            "on",
-            "yes",
-        )
+        create_placeholders = (request.POST.get("create_placeholders") or "") in ("1", "true", "on", "yes")
         count_raw = (request.POST.get("count") or "0").strip()
         sample_type = (request.POST.get("sample_type") or "test").strip() or "test"
 
@@ -408,8 +370,32 @@ def step2(request, draft_id: int):
         draft.save(update_fields=["payload", "last_error"])
 
         try:
-            apply_project_draft(draft=draft, user=request.user)
-            return redirect(reverse("lims_core:ui-home"))
+            result = apply_project_draft(draft=draft, user=request.user)
+
+            # Support both return shapes
+            if isinstance(result, dict):
+                project = result.get("project")
+                batch = result.get("batch")
+            else:
+                project = result
+                batch = None
+
+            # Prefer the newest intake batch for that project
+            if batch is None and project is not None:
+                try:
+                    batch = (
+                        SampleBatch.objects.filter(project=project)
+                        .order_by("-created_at", "-id")
+                        .first()
+                    )
+                except Exception:
+                    batch = None
+
+            if batch is not None:
+                return redirect(f"/lims/ui/batches/{batch.id}/")
+
+            return redirect("/lims/ui/")
+
         except Exception as e:
             draft.last_error = str(e)
             draft.save(update_fields=["last_error"])

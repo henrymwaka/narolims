@@ -51,7 +51,12 @@
     <tr><th>Sample ID</th><td>{{ sample.sample_id }}</td></tr>
     <tr><th>Sample Name</th><td>{{ sample.name|default:"Not specified" }}</td></tr>
     <tr><th>Sample Type</th><td>{{ sample.sample_type|default:"Not specified" }}</td></tr>
-    <tr><th>Status</th><td><span class="pill">{{ sample.status }}</span></td></tr>
+    <tr>
+      <th>Status</th>
+      <td>
+        <span class="pill" id="sample-status-pill">{{ sample.status }}</span>
+      </td>
+    </tr>
     <tr><th>Project</th><td>{{ sample.project.name }}</td></tr>
     <tr><th>Laboratory</th><td>{{ sample.laboratory|default:"Not assigned" }}</td></tr>
     <tr><th>Created</th><td>{{ sample.created_at }}</td></tr>
@@ -84,7 +89,38 @@
   {% endif %}
 </div>
 
-<!-- WORKFLOW & SLA -->
+<!-- WORKFLOW ACTIONS (CLICKABLE) -->
+<div class="section card pad">
+  <div class="row between center gap-10">
+    <h3>Workflow Actions</h3>
+    <div class="row center gap-10 wrap">
+      <button class="btn ghost" type="button" id="wf-refresh">Refresh</button>
+    </div>
+  </div>
+
+  <div class="muted" style="margin-top:6px;">
+    Actions shown here are computed from your role(s) in this laboratory.
+  </div>
+
+  <div id="wf-alert" style="display:none; margin-top:10px;"></div>
+
+  <div class="row gap-10 wrap" style="margin-top:12px;" id="wf-actions">
+    <span class="muted">Loading allowed actions…</span>
+  </div>
+
+  <div style="margin-top:14px;">
+    <label class="muted" for="wf-comment" style="display:block; margin-bottom:6px;">Comment (optional)</label>
+    <input
+      id="wf-comment"
+      type="text"
+      class="input"
+      placeholder="Add a note for the audit trail"
+      style="width:100%; max-width:720px;"
+    />
+  </div>
+</div>
+
+<!-- WORKFLOW & SLA (WIDGET + SLA VIEW) -->
 <div class="section card pad">
   <h3>Workflow & SLA</h3>
 
@@ -99,5 +135,171 @@
 
   {% include "lims_core/workflow_widget.html" with workflow_kind="sample" workflow_object_id=sample.id %}
 </div>
+
+<script>
+(function () {
+  const sampleId = {{ sample.id }};
+  const baseAllowed = `/lims/workflows/sample/${sampleId}/allowed/`;
+  const baseTransition = `/lims/workflows/sample/${sampleId}/transition/`;
+
+  const elActions = document.getElementById("wf-actions");
+  const elAlert = document.getElementById("wf-alert");
+  const elComment = document.getElementById("wf-comment");
+  const elStatusPill = document.getElementById("sample-status-pill");
+  const elRefresh = document.getElementById("wf-refresh");
+
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(";").shift();
+    return "";
+  }
+
+  function showAlert(kind, msg) {
+    // kind: "ok" | "warn" | "error"
+    elAlert.style.display = "block";
+    elAlert.className = "";
+    // Reuse your badge palette lightly
+    const cls = (kind === "ok") ? "badge badge-ok" : (kind === "warn") ? "badge badge-warn" : "badge badge-error";
+    elAlert.innerHTML = `<span class="${cls}">${escapeHtml(msg)}</span>`;
+  }
+
+  function clearAlert() {
+    elAlert.style.display = "none";
+    elAlert.innerHTML = "";
+  }
+
+  function escapeHtml(s) {
+    return String(s || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function setLoading(msg) {
+    elActions.innerHTML = `<span class="muted">${escapeHtml(msg || "Loading…")}</span>`;
+  }
+
+  function renderActions(allowed, roles, current) {
+    elActions.innerHTML = "";
+
+    if (!Array.isArray(allowed) || allowed.length === 0) {
+      elActions.innerHTML = `<span class="muted">No transitions available from <strong>${escapeHtml(current)}</strong> for your role(s): ${escapeHtml((roles || []).join(", "))}</span>`;
+      return;
+    }
+
+    allowed.forEach((toStatus) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn";
+      btn.textContent = `Move to ${toStatus}`;
+      btn.addEventListener("click", () => doTransition(toStatus));
+      elActions.appendChild(btn);
+    });
+  }
+
+  async function loadAllowed() {
+    clearAlert();
+    setLoading("Loading allowed actions…");
+
+    const res = await fetch(baseAllowed, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json"
+      },
+      credentials: "same-origin"
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      showAlert("error", `Failed to load allowed actions (${res.status}). ${txt.slice(0, 200)}`);
+      setLoading("Unable to load actions.");
+      return;
+    }
+
+    const data = await res.json();
+    const allowed = data.allowed || [];
+    const roles = data.roles || [];
+    const current = data.current || "";
+    renderActions(allowed, roles, current);
+  }
+
+  async function doTransition(toStatus) {
+    clearAlert();
+
+    const csrf = getCookie("csrftoken");
+    if (!csrf) {
+      showAlert("error", "Missing CSRF token cookie. Refresh the page and try again.");
+      return;
+    }
+
+    // Lock UI
+    const oldHtml = elActions.innerHTML;
+    setLoading(`Applying transition to ${toStatus}…`);
+
+    const body = new URLSearchParams();
+    body.set("csrfmiddlewaretoken", csrf);
+    body.set("to_status", toStatus);
+    body.set("comment", (elComment.value || "").trim());
+
+    const res = await fetch(baseTransition, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: body.toString(),
+      credentials: "same-origin"
+    });
+
+    // If backend responds with HTML redirect, fetch() will follow and you'll lose the JSON.
+    // We handle both cases: JSON success OR non-JSON but 2xx.
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+
+    if (!res.ok) {
+      let msg = `Transition failed (${res.status}).`;
+      try {
+        if (ct.includes("application/json")) {
+          const j = await res.json();
+          msg = j.status || j.detail || msg;
+        } else {
+          const t = await res.text();
+          msg = (t || msg).slice(0, 250);
+        }
+      } catch (e) {}
+      showAlert("error", msg);
+      elActions.innerHTML = oldHtml;
+      return;
+    }
+
+    // Success
+    let newStatus = toStatus;
+    try {
+      if (ct.includes("application/json")) {
+        const j = await res.json();
+        if (j && j.current) newStatus = j.current;
+      }
+    } catch (e) {}
+
+    // Update status pill and reload allowed actions
+    if (elStatusPill) elStatusPill.textContent = newStatus;
+
+    showAlert("ok", `Status updated to ${newStatus}.`);
+    await loadAllowed();
+  }
+
+  if (elRefresh) {
+    elRefresh.addEventListener("click", () => loadAllowed());
+  }
+
+  // Boot
+  loadAllowed().catch((e) => {
+    showAlert("error", "Workflow actions failed to initialize.");
+    setLoading("Unable to load actions.");
+  });
+})();
+</script>
 
 {% endblock %}

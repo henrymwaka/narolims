@@ -33,6 +33,7 @@ def _require_lab_scope(*, user, laboratory_id: int, allowed_lab_ids: Sequence[in
 
 def _tokenize_code(value: str, max_len: int = 16, fallback: str = "X") -> str:
     import re
+
     code_re = re.compile(r"[^A-Za-z0-9]+")
     if value is None:
         return fallback
@@ -57,7 +58,6 @@ def _generate_batch_code(*, lab: Laboratory, project: Project) -> str:
     proj_code = _tokenize_code(getattr(project, "code", None) or "PROJ", max_len=18, fallback="PROJ")
     prefix = f"{lab_code}-{proj_code}-BATCH-{date_part}"
 
-    # sequence inside a transaction to avoid collisions
     existing = (
         SampleBatch.objects.filter(batch_code__startswith=prefix + "-")
         .values_list("batch_code", flat=True)
@@ -102,6 +102,7 @@ class SampleCreateSpec:
     name: str = ""
     subgroup: str = ""
     external_id: str = ""
+    sample_id: str = ""  # optional override; blank triggers generator
 
 
 @transaction.atomic
@@ -177,6 +178,12 @@ def create_samples(*, specs: list[SampleCreateSpec]) -> list[Sample]:
             if exp.project_id != project.id:
                 raise InvariantError("Sample experiment must belong to the same project")
 
+        # Important:
+        # - Sample.sample_id is commonly blank=False at model layer.
+        # - The model.save() generator populates sample_id when falsy.
+        # - Therefore validate with exclude=["sample_id"] before saving.
+        sid = (s.sample_id or "").strip()
+
         obj = Sample(
             project=project,
             batch=batch,
@@ -185,15 +192,84 @@ def create_samples(*, specs: list[SampleCreateSpec]) -> list[Sample]:
             name=(s.name or "").strip(),
             subgroup=(s.subgroup or "").strip(),
             external_id=(s.external_id or "").strip(),
-            sample_id="",  # triggers generator in model.save()
+            sample_id=sid,  # blank is allowed here, generator will fill in save()
         )
 
-        # Let model.save() assign laboratory and freeze schema.
-        obj.full_clean()
+        obj.full_clean(exclude=["sample_id"])
         obj.save()
         created.append(obj)
 
     return created
+
+
+# ============================================================
+# UI-friendly wrappers (so views do not reimplement intake logic)
+# ============================================================
+
+@transaction.atomic
+def create_intake_batch_for_project(*, project: Project, batch_spec: BatchCreateSpec) -> SampleBatch:
+    """
+    UI wrapper:
+    - caller provides a Project instance
+    - laboratory is derived from project
+    - uses the same invariants as create_batch
+    """
+    if not project or not project.pk:
+        raise ValidationError("project is required")
+    if not project.laboratory_id:
+        raise InvariantError("Project has no laboratory assigned")
+
+    spec = BatchCreateSpec(
+        laboratory_id=int(project.laboratory_id),
+        project_id=int(project.id),
+        collected_at=batch_spec.collected_at,
+        collected_by=batch_spec.collected_by,
+        collection_site=batch_spec.collection_site,
+        client_name=batch_spec.client_name,
+        notes=batch_spec.notes,
+        batch_code=batch_spec.batch_code,
+    )
+    return create_batch(spec=spec)
+
+
+@transaction.atomic
+def bulk_create_samples_for_batch(*, batch: SampleBatch, rows: list[dict]) -> list[Sample]:
+    """
+    UI wrapper:
+    - rows: [{sample_id?, name?, sample_type?, subgroup?, external_id?, experiment_id?}, ...]
+    - sample_id may be blank and model will generate
+    """
+    if not batch or not batch.pk:
+        raise ValidationError("batch is required")
+    if not batch.project_id:
+        raise InvariantError("Batch must be tied to a project")
+
+    specs: list[SampleCreateSpec] = []
+    for r in rows or []:
+        sid = (r.get("sample_id") or "").strip()
+        nm = (r.get("name") or "").strip()
+        st = (r.get("sample_type") or "").strip()
+        subgroup = (r.get("subgroup") or "").strip()
+        external_id = (r.get("external_id") or "").strip()
+        exp_id = r.get("experiment_id") or None
+
+        if not (sid or nm or st or subgroup or external_id or exp_id):
+            continue
+
+        specs.append(
+            SampleCreateSpec(
+                project_id=int(batch.project_id),
+                batch_id=int(batch.id),
+                experiment_id=int(exp_id) if exp_id else None,
+                sample_type=st,
+                name=nm,
+                subgroup=subgroup,
+                external_id=external_id,
+                sample_id=sid,
+            )
+        )
+
+    return create_samples(specs=specs)
 
 
 @transaction.atomic
@@ -206,7 +282,7 @@ def create_project_with_intake_batch(
     placeholder_name_prefix: str = "Placeholder",
 ) -> dict:
     """
-    Wizard-friendly: create Project, then optionally create one intake batch and N placeholder samples.
+    Wizard-friendly: create Project, then create one intake batch and optional N placeholder samples.
     """
     project = create_project(spec=project_spec)
 
@@ -222,14 +298,11 @@ def create_project_with_intake_batch(
     )
     batch = create_batch(spec=bspec)
 
-    samples = []
-    if int(placeholder_count) > 0:
-        n = int(placeholder_count)
-        if n < 0:
-            n = 0
+    samples: list[Sample] = []
+    n = int(placeholder_count or 0)
+    if n > 0:
         if n > 5000:
             n = 5000
-
         stype = (placeholder_sample_type or "").strip()
         specs = [
             SampleCreateSpec(
@@ -237,7 +310,8 @@ def create_project_with_intake_batch(
                 batch_id=batch.id,
                 experiment_id=None,
                 sample_type=stype,
-                name=f"{placeholder_name_prefix} {i+1}",
+                name=f"{placeholder_name_prefix} {i + 1}",
+                sample_id="",
             )
             for i in range(n)
         ]

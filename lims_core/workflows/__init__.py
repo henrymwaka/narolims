@@ -49,20 +49,29 @@ ROLE_ALIASES: Dict[str, str] = {
     "ADMIN": "ADMIN",
     "SYSTEM_ADMIN": "ADMIN",
     "SUPERUSER": "ADMIN",
+
     "LAB_MANAGER": "LAB_MANAGER",
     "MANAGER": "LAB_MANAGER",
+
+    # Tech aliases (be forgiving)
     "LAB_TECH": "LAB_TECH",
+    "LABTECH": "LAB_TECH",
+    "TECH": "LAB_TECH",
     "TECHNICIAN": "LAB_TECH",
+
     "QA": "QA",
     "QUALITY_ASSURANCE": "QA",
+
     "SCIENTIST": "SCIENTIST",
     "PI": "SCIENTIST",
+
     "READONLY": "READONLY",
     "VIEWER": "READONLY",
 }
 
 
 def normalize_state(value: str) -> str:
+    # Critical: strip whitespace to prevent "QC_PENDING   " bugs from leaking to JSON
     return str(value or "").strip().upper()
 
 
@@ -105,7 +114,7 @@ def _role_allows(kind: str, current: str, target: str, role: str) -> bool:
         return False
 
     if r == "LAB_MANAGER":
-        # Example restriction carried from your prior policy
+        # Example restriction carried from prior policy
         if k == "EXPERIMENT" and tgt == "CANCELLED":
             return False
         return True
@@ -215,8 +224,8 @@ def validate_transition_with_role(
 
     if not _role_allows(kind, cur, tgt, role):
         r = normalize_role(role)
-        k = normalize_state(kind).lower()
-        raise ValueError(f"Role {r} cannot perform {k} transition: {cur} -> {tgt}")
+        kk = normalize_state(kind).lower()
+        raise ValueError(f"Role {r} cannot perform {kk} transition: {cur} -> {tgt}")
 
 
 def allowed_next_states(kind: str, current: str) -> List[str]:
@@ -229,7 +238,25 @@ def allowed_next_states(kind: str, current: str) -> List[str]:
     trans = _transitions_for_kind(k)
     if not trans:
         return []
-    return sorted(trans.get(cur, set()))
+    return sorted({normalize_state(x) for x in trans.get(cur, set())})
+
+
+def _normalized_transition_map(kind: str) -> Dict[str, List[str]]:
+    """
+    Return a stable transitions map with normalized keys/values.
+    Prevents whitespace or case anomalies from leaking into API output.
+    """
+    k = normalize_state(kind)
+    trans = _transitions_for_kind(k)
+    out: Dict[str, List[str]] = {}
+    for state, nxt in (trans or {}).items():
+        s = normalize_state(state)
+        out[s] = sorted({normalize_state(x) for x in (nxt or set())})
+    # ensure every known state is present (even if empty)
+    for s in _states_for_kind(k):
+        ss = normalize_state(s)
+        out.setdefault(ss, [])
+    return out
 
 
 def allowed_transitions(
@@ -243,15 +270,14 @@ def allowed_transitions(
     1) Old-style usage (introspection / UI):
          allowed_transitions("sample") -> Dict[str, List[str]]
 
-    2) Role-aware usage (views_workflow_api expects this):
+    2) Role-aware usage:
          allowed_transitions("sample", "QC_PENDING", "QA") -> List[str]
     """
     k = normalize_state(kind)
 
-    # Mode 1: full map
+    # Mode 1: full map (normalized)
     if current is None and role is None:
-        trans = _transitions_for_kind(k)
-        return {state: sorted(list(nxt)) for state, nxt in trans.items()}
+        return _normalized_transition_map(k)
 
     # Mode 2: role-aware list for a specific state
     cur = normalize_state(current or "")
@@ -260,11 +286,7 @@ def allowed_transitions(
         return nxt
 
     r = normalize_role(role)
-    out: List[str] = []
-    for tgt in nxt:
-        if _role_allows(k, cur, tgt, r):
-            out.append(tgt)
-    return sorted(out)
+    return sorted([t for t in nxt if _role_allows(k, cur, t, r)])
 
 
 def workflow_definition(kind: Optional[str] = None) -> Dict[str, Any]:
@@ -276,22 +298,19 @@ def workflow_definition(kind: Optional[str] = None) -> Dict[str, Any]:
         if kk == "SAMPLE":
             return {
                 "kind": "sample",
-                "states": sorted(SAMPLE_STATES),
+                "states": sorted({normalize_state(x) for x in SAMPLE_STATES}),
                 "transitions": allowed_transitions("sample"),
             }
         if kk == "EXPERIMENT":
             return {
                 "kind": "experiment",
-                "states": sorted(EXPERIMENT_STATES),
+                "states": sorted({normalize_state(x) for x in EXPERIMENT_STATES}),
                 "transitions": allowed_transitions("experiment"),
             }
         raise ValueError(f"Unsupported workflow kind: {k}")
 
     if kind is None:
-        return {
-            "sample": _one("sample"),
-            "experiment": _one("experiment"),
-        }
+        return {"sample": _one("sample"), "experiment": _one("experiment")}
     return _one(kind)
 
 

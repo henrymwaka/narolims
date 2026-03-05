@@ -47,6 +47,9 @@
 
 </div>
 
+{# Load the widget JS (version bump to bust cache) #}
+<script src="{% static 'lims_core/js/workflow.js' %}?v=8"></script>
+
 <script>
 (function () {
   const widget = document.currentScript.previousElementSibling;
