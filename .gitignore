@@ -28,8 +28,8 @@ env/
 # ---------------------------------------------------------------------------
 db.sqlite3
 db.sqlite3-journal
+db.sqlite3.bak
 /media/
-/static/
 /staticfiles/
 /logs/
 
@@ -42,13 +42,16 @@ db.sqlite3-journal
 # Celery / background processing
 # ---------------------------------------------------------------------------
 celerybeat-schedule
-celeryb
+
+# ---------------------------------------------------------------------------
+# Local artifacts / scratch files
+# ---------------------------------------------------------------------------
+*.save
+*.log
+cookies.txt
+
+# ---------------------------------------------------------------------------
+# Project-specific local-only files
+# ---------------------------------------------------------------------------
 lims_core/workflows_py_unused.bak
-
-# local curl cookie jar
-cookies.txt
-cookies.txt
 lims_core/management/commands/show_urls.py
-
-# Local artifacts
-.env

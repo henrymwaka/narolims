@@ -89,7 +89,7 @@ RUNNING_TESTS = (
     "PYTEST_CURRENT_TEST" in os.environ
     or "pytest" in sys.argv
     or "test" in sys.argv
-    or os.environ.get("DJANGO_ENV", "").lower() in {"ci", "test"}
+    or config("DJANGO_ENV", default="").lower() in {"ci", "test"}
     or os.environ.get("DJANGO_SETTINGS_MODULE", "").endswith(".test")
 )
 
@@ -182,9 +182,13 @@ TEMPLATES = [
 # ===============================================================
 # Database
 # ===============================================================
-DJANGO_ENV = os.environ.get("DJANGO_ENV", "").lower()
+DJANGO_ENV = config("DJANGO_ENV", default="production").lower()
+DB_ENGINE = config(
+    "DB_ENGINE",
+    default="sqlite" if DJANGO_ENV in {"dev", "local", "ci", "test"} else "postgres",
+).lower()
 
-if DJANGO_ENV in {"ci", "test"}:
+if DB_ENGINE == "sqlite":
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -197,7 +201,7 @@ else:
             "ENGINE": "django.db.backends.postgresql",
             "NAME": config("DB_NAME", default="narolims_db"),
             "USER": config("DB_USER", default="narolims_user"),
-            "PASSWORD": config("DB_PASSWORD"),
+            "PASSWORD": config("DB_PASSWORD", default=""),
             "HOST": config("DB_HOST", default="127.0.0.1"),
             "PORT": config("DB_PORT", default="5432"),
             "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=60, cast=int),
